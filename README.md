@@ -3,21 +3,20 @@
 
 # ML/DL Learning Log
 
-> A personal journal of everything I asked AI while learning machine learning and deep learning. It started on **June 29, 2026** — my very first day studying ML/DL. Every concept here was learned by asking questions, one at a time, until it made sense.
+> Learning machine learning by asking an AI, line by line. **Studying since June 29, 2026.**
 
-Every note is kept in **both English and Korean**. Each note has a small language switcher at the very top so you can jump between the two versions.
+A personal log of everything I ask AI while learning machine learning and deep learning. Everything is kept in **one growing notes file** that I keep adding to over time, available in **both English (main) and Korean**.
 
-## Entries
+## 📖 Read the notes
 
-| Date | Topic | English | 한국어 |
-|---|---|---|---|
-| 2026-06-29 | Deep Learning & GPU fundamentals | [Read](en/2026-06-29-deep-learning-and-gpu.md) | [읽기](ko/2026-06-29-딥러닝과-GPU.md) |
+- **[English notes (main) →](en/study-notes.md)**
+- [한국어 노트 →](ko/study-notes.md)
 
-## The one-line core
+Each notes file has a small language switcher at the very top, so you can jump between English and Korean.
 
-> There are measurements and matching answers; weights start random. Multiply measurement × weight to make a **prediction (forward pass)**, measure how far it is from the answer (**loss**), use **differentiation to get the gradient (direction + size)**, and nudge the weights a little in that direction by the **learning rate**. Run it again with the new weights → repeat until you reach weights with the lowest loss.
->
-> This same loop is identical across images, video, text, and LLMs — only three things change per field: ① how input becomes numbers, ② how the answer (loss) is defined, ③ the model architecture.
+## Why I tried this
+
+Inspired by Andrej Karpathy's advice on how to become an expert: take on concrete projects depth-first and learn "on demand," summarize everything you learn in your own words, and only compare yourself to a younger you. So I started this log on my first day of studying ML/DL.
 
 ## How I study
 
@@ -28,9 +27,10 @@ Every note is kept in **both English and Korean**. Each note has a small languag
 
 ```
 ml-dl-learning-log/
-├── README.md        ← you are here
-├── en/              ← English notes (main)
-└── ko/              ← Korean notes (한국어)
+├── README.md          ← you are here
+├── en/study-notes.md  ← English notes (main, keeps growing)
+├── ko/study-notes.md  ← Korean notes (한국어)
+└── assets/            ← images
 ```
 
 ---
@@ -40,21 +40,20 @@ ml-dl-learning-log/
 
 # 머신러닝·딥러닝 학습 기록
 
-> 머신러닝·딥러닝을 처음 공부하면서 AI에게 질문한 모든 것을 기록하는 공간입니다. **2026년 6월 29일**, ML/DL을 처음 공부한 그날부터 시작합니다. 모든 개념은 이해될 때까지 하나씩 질문하며 배운 것들입니다.
+> AI에게 한 줄씩 물어보며 배우는 머신러닝. **2026년 6월 29일부터 공부 시작.**
 
-모든 노트는 **영어와 한국어** 두 버전으로 제공됩니다. 각 노트 맨 위에 작은 언어 전환 링크가 있어 두 버전을 오갈 수 있습니다.
+머신러닝·딥러닝을 공부하며 AI에게 질문한 모든 것을 기록하는 공간입니다. 모든 내용은 **하나의 파일에 계속 누적**하며, **영어(메인)와 한국어** 두 버전으로 제공됩니다.
 
-## 기록
+## 📖 노트 보기
 
-| 날짜 | 주제 | English | 한국어 |
-|---|---|---|---|
-| 2026-06-29 | 딥러닝·GPU 기초 | [Read](en/2026-06-29-deep-learning-and-gpu.md) | [읽기](ko/2026-06-29-딥러닝과-GPU.md) |
+- **[영어 노트 (메인) →](en/study-notes.md)**
+- [한국어 노트 →](ko/study-notes.md)
 
-## 한 줄 핵심
+각 노트 맨 위에 작은 언어 전환 링크가 있어 영어·한국어를 오갈 수 있습니다.
 
-> 측정값과 그에 맞는 정답지가 있고, 가중치를 랜덤으로 시작한다. 측정값 × 가중치로 **예측을 만들고(순전파)**, 그 예측이 정답과 얼마나 떨어졌는지 잰다(**손실**). **미분으로 기울기(방향+크기)를 구하고**, 그 방향으로 **학습률만큼** 가중치를 조금 옮긴다. 새 가중치로 다시 돌린다 → 손실이 가장 적은 가중치 근처에 갈 때까지 반복한다.
->
-> 이 루프는 이미지·동영상·텍스트·LLM 어디서나 동일하다 — 분야마다 바뀌는 건 ① 입력을 숫자로 바꾸는 방식 ② 정답(손실)을 정하는 방식 ③ 모델 구조뿐.
+## 왜 시작했나
+
+Andrej Karpathy의 조언에서 영감을 받았습니다 — 구체적인 프로젝트를 깊이 있게 맡아 "그때그때" 필요한 걸 배우고, 배운 것을 자기 말로 요약하고, 남이 아니라 과거의 나와만 비교하라는 것. 그래서 ML/DL 공부 첫날부터 이 기록을 시작했습니다.
 
 ## 공부 방식
 

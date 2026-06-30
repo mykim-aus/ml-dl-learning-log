@@ -1,9 +1,28 @@
-<sub>🌐 **English** · [한국어](../ko/2026-06-29-딥러닝과-GPU.md)</sub>
+<sub>🌐 **English** · [한국어](../ko/study-notes.md)</sub>
 
-# Deep Learning & GPU Study Notes
+# Learning Machine Learning by Asking an AI, Line by Line
 
-> Machine learning basics → GPU hardware → how memory works → the actual training process → the principles behind weights and derivatives → LLMs and recent trends:
-> these are notes that pull a single session's worth of conversation into one continuous thread.
+> A growing log of everything I ask AI while learning machine learning and deep learning — **studying since June 29, 2026**. New topics are appended to this same file over time.
+
+## Why I tried this
+
+I saw this post by Andrej Karpathy:
+
+![Andrej Karpathy — how to become expert at a thing](../assets/karpathy-how-to-become-expert.webp)
+
+> How to become expert at thing:
+>
+> 1. iteratively take on concrete projects and accomplish them depth wise, learning "on demand" (ie don't learn bottom up breadth wise)
+> 2. teach/summarize everything you learn in your own words
+> 3. only compare yourself to younger you, never to others
+
+So I decided to try it.
+
+---
+
+## Deep Learning & GPU
+
+> Machine learning basics → GPU hardware → how memory works → the actual training process → the principles behind weights and derivatives → LLMs and recent trends: these are notes that pull a single session's worth of conversation into one continuous thread.
 
 ---
 
