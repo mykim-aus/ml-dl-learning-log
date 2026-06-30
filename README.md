@@ -1,3 +1,4 @@
+<a id="english"></a>
 <sub>🌐 **English** · [한국어](#한국어)</sub>
 
 # ML/DL Learning Log
@@ -35,7 +36,7 @@ ml-dl-learning-log/
 ---
 
 <a id="한국어"></a>
-<sub>[English](#ml-dl-learning-log) · 🌐 **한국어**</sub>
+<sub>[English](#english) · 🌐 **한국어**</sub>
 
 # 머신러닝·딥러닝 학습 기록
 
