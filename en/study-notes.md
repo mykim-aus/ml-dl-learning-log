@@ -307,6 +307,28 @@ So I decided to try it.
 
 110. Is it z2 or -z2 that goes into exp / why sigmoid has this shape / does z2=1 mean 100% confidence
 
+111. Is there more than MSE for loss / BCE for classification and why
+
+112. Is backprop one method or many / does a framework's `.backward()` contain many methods
+
+113. What autograd precisely is — does it decide the loss automatically?
+
+114. Are there more losses than MSE·BCE / is it all measure-then-differentiate in the end
+
+115. Do I need to master the algorithms and math proofs of every loss (learning strategy)
+
+116. Is dz2 a gradient / why the 2 (backprop `d`-prefix and layer number)
+
+117. What exactly is the principle of computing a derivative/gradient / is dz2 four gradients (one per row)
+
+118. What transpose `.T` is — swapping rows and columns / why it's used in dW2
+
+119. Why divide dz2 by 4 (N) — because the loss is a mean
+
+120. What exactly is in the loss variable / when is it used
+
+121. Why loss is 1 number but dz2 is 4 / when do samples get combined
+
 ---
 
 ## 1. Machine Learning (ML) and Deep Learning (DL)
@@ -1235,6 +1257,87 @@ A record of taking what I learned abstractly today and computing it myself with 
 - Why "add 1 and divide 1 by it" = the device that **bounds the result to 0~1**. `exp(-z2)` is always positive (0~∞) → `1+exp(-z2)` is always ≥1 → `1/(1+...)` is always in 0~1. Big denominator → near 0; denominator near 1 → near 1.
 - Example: z2=0.525 → `exp(-0.525)=0.592` → `1+0.592=1.592` → `1/1.592=0.628` (matches the actual output).
 - Does z2=1 mean 100% confidence? ❌ `sigmoid(1)=1/(1+0.368)=0.73` (73%). To reach exactly 100% (=1) you'd need z2=+∞ → a finite score never lands exactly on 0 or 1, only approaches them.
+
+## 93. Loss — MSE vs BCE for Classification, and Why BCE
+
+- MSE = `mean((pred-answer)²)` — note 42's "square the difference and average." A valid loss.
+- For classification (probabilities 0~1), the usual choice is **BCE (binary cross-entropy)** = `-mean(y·log(output) + (1-y)·log(1-output))`.
+- Why BCE: ① punishes confident-wrong far harder (pred 0.99 but answer 0: MSE penalty 0.98 vs BCE 4.6). ② paired with sigmoid, the output-layer gradient falls out to just `pred - answer` (note 76). MSE multiplies in the sigmoid derivative → messier + vanishing gradient when saturated.
+- So for this XOR (classification) we use BCE.
+- Formula concept (no need to derive/memorize): `y·log(output)+(1-y)·log(1-output)` is a **switch** — if the answer is 1 only `log(output)` survives, if 0 only `log(1-output)` — picking "**the log of the probability assigned to the true answer**." The leading `-` flips it: high probability on the truth → penalty ≈ 0, low probability → penalty explodes. `mean` averages over samples. → "the lower the probability you gave the true answer, the bigger the penalty."
+
+## 94. Is Backprop a Single Method or Many / What Does a Framework's `.backward()` Do?
+
+- Backprop itself = **applying the chain rule back-to-front to get gradients** — one fixed algorithm. There aren't "many backprop methods."
+- What varies is the **ingredients** it passes through: the loss (MSE/BCE — changes the starting gradient) and activations (ReLU/sigmoid — different derivatives). The resulting gradient formulas differ per network, but the **procedure (chain rule) is always the same**.
+- Completely separate: the **update rule = optimizer** (SGD/Adam/RMSprop…) — that genuinely has many methods. Backprop = compute gradients; optimizer = take a step with them (notes 20, 35).
+- PyTorch `loss.backward()` = **one general automatic-differentiation (autograd) engine**, not many methods — just the chain rule. Each operation carries its own derivative rule and is recorded in a graph → backward walks it back-to-front multiplying them → change the loss/activation and the same engine handles it automatically. The update is a separate `optimizer.step()`.
+- Doing it by hand = doing what autograd does automatically.
+
+## 95. What autograd Precisely Is (it differentiates the loss, it doesn't choose it)
+
+- Misconception: autograd picks the loss based on the activation? ❌ The loss and activations are all **chosen by the human**. autograd chooses nothing.
+- autograd = an **automatic differentiator**: it takes the computation you wrote (input → … → loss) and differentiates it to fill in gradients.
+- How: ① during the forward pass it records each operation (matmul, +, ReLU, sigmoid, log, mean…) into a **computation graph** → ② each operation knows its own derivative rule → ③ `.backward()` walks the graph backward from loss to inputs, multiplying via the chain rule to fill in gradients. = **reverse-mode automatic differentiation**.
+- Analogy: a calculator that, given any formula you type, computes its derivative automatically. You write the formula; the calculator differentiates it.
+
+## 96. There Are Many Loss Functions / But They All "Measure, Then Differentiate"
+
+- Beyond MSE·BCE there are many. By task: regression = MSE/MAE/Huber, binary classification = BCE, multi-class = Cross-Entropy, embeddings = Contrastive/Triplet.
+- Common skeleton: ① measure how bad the prediction is (how much it disagrees with the answer) as a **single number** → ② differentiate that to move the weights in the reducing direction.
+- Two requirements: **lower must be better** (so "reducing" = "doing better") + **differentiable** (so we can get gradients).
+- Nuance: "distance from the answer" is the supervised case. Unsupervised/self-supervised has no explicit answer, so the loss measures a different criterion like reconstruction/clustering (note 32). And "distance" isn't always squared distance (BCE measures probabilistic "surprise"). But the spirit — "how far the prediction is from the truth" — is the same.
+
+## 97. Do I Need to Understand the Algorithms and Math Proofs of Every Loss (binary/multi/embedding)?
+
+- The depth depends on your **goal (role)**. Practitioner/engineer = **intuition** is enough (what each loss does, when to use it, why it behaves that way); proofs unnecessary (the framework computes them). Researcher = deeper math (deriving gradients, convergence, proofs).
+- For KIM's current stage (fundamentals, intuition): "**understand the concept + do one by hand end-to-end**" is the answer. Finishing one (XOR backprop) opens the rest as "the same engine with a different loss." No need to re-derive each time.
+- **Mathematical proofs/verification (convergence proofs, etc.) are not needed now** — that's research/theory territory (notes 4, 37).
+- Karpathy's principle (README): don't sweep everything up front; learn on-demand when a project needs it. The math of multi-class (softmax+CE) or embeddings (contrastive/triplet) can wait until a project calls for it.
+- Minimum: know the map (which problem → which loss) now; the deep math when the time comes.
+
+## 98. Backprop Notation — the `d` Prefix in `dz2`, `dW2` / the Number Is the Layer
+
+- `dz2` = **"the gradient of the loss L with respect to z2" (dL/dz2)**. The `d` prefix is a code convention meaning "gradient of the loss w.r.t. this." → Yes, dz2 is a gradient.
+- What a gradient means (note 20): "if you nudge this value a little, in which direction and how much does the loss change."
+- **The number 2 = the layer index** (same as z2·W2·b2 being layer 2). `dz2` = gradient at z2, `dz1` = gradient at z1. It's just the forward variable's name with `d` in front.
+- Two kinds: **parameter gradients** (dW1, db1, dW2, db2 — actually used to update the weights) vs **intermediate gradients** (dz2, da1, dz1 — not parameters, just stepping stones passed backward through the chain). z2 isn't a parameter, so dz2 is an intermediate step toward dW2·db2.
+
+## 99. The Principle of Derivatives/Gradients / Why output−y Is Simple / dz2 Is 4 Per-Sample Gradients
+
+- **Gradient (derivative) = slope = "if you nudge the input a tiny bit, how much does the output change?"** Definition: `df/dx = lim(h→0) [f(x+h) − f(x)] / h` (a tiny "output change ÷ input change" = instantaneous slope). It's note 25's "nudge and see" computed exactly, without actually nudging. Example: the slope of `x²` at x=3 is 6.
+- **For multiple steps, multiply (chain rule)**: `dL/dz2 = dL/doutput × doutput/dz2` — multiply each step's slope and stitch them together.
+- **Why so simple (output−y)?** `dL/doutput` (BCE derivative, messy) × `doutput/dz2` (sigmoid derivative = output(1−output)); the messy parts **cancel algebraically**, leaving just `output − y`. Not a shortcut — the **simplified result of the full derivative** (sections 76·93). With a different loss/activation it wouldn't be simple.
+- **dz2 (4,1) = 4 per-sample gradients** (not one). Each row = that sample's error signal. Parameter gradients dW2·db2 later combine all 4 samples into one gradient per weight (a weight is shared across all samples).
+- Actual dz2 = `(output−y)/4` = `[0.125, −0.093, −0.246, 0.034]`. Sign `+` = predicted too high (lower it), `−` = too low (raise it); magnitude = how wrong. `[1,0]` is largest at −0.246 (most wrong).
+
+## 100. Transpose `.T` — Swapping Rows and Columns / Why It's Used in dW2
+
+- `.T` = **transpose** = flip rows↔columns. Element (i,j) → (j,i). Shape `(m,n)` → `(n,m)`.
+- Example: `[[1,2,3],[4,5,6]]` (2,3) → `[[1,4],[2,5],[3,6]]` (3,2). Each row becomes a column.
+- a1 `(4,8)` (rows=samples, cols=neurons) → `a1.T` `(8,4)` (rows=neurons, cols=samples).
+- Why in dW2: ① shape — to make dW2 `(8,1)` you need `(8,4)@(4,1)` → transpose a1 to `(8,4)` (`a1@dz2` fails, inner 8≠4). ② meaning — dW2[i] (neuron i's gradient) = sum of "neuron i's outputs (column i of a1) · error dz2"; transposing turns column i into row i so the matmul's dot product computes it directly.
+
+## 101. Why We Divide dz2 by 4 (the loss is a mean, so the gradient is ÷N too)
+
+- The loss uses `np.mean` = the **average** of 4 sample-losses = `sum ÷ 4`. **Differentiating an average keeps that "÷4" in the gradient** → `dz2 = (output−y)/4`.
+- Analogy: if `total = a+b+c+d` then `d(total)/da=1`, but if `avg=(a+b+c+d)/4` then `d(avg)/da=1/4`. That 1/4 just rides along.
+- If we didn't divide? Gradients would be 4× larger = same as a 4× larger learning rate. It would still work, but wouldn't be the exact gradient of the mean loss we display.
+- Why average (not sum) at all? Whether you have 4 or 400 samples, the gradient magnitude stays comparable, so **the same learning rate works** (not thrown off by batch size). That's why mean is standard.
+- Picture: with 4 numbers a,b,c,d, nudging a by +1 → the sum rises +1 (slope 1), the average rises +0.25 (slope 1/4). The "+1 shared among 4" waters the effect down by 4 = ÷4. Drop a coin in one slot: the sum grows by 1, each person's share of the average by only 1/4.
+
+## 102. What's in the loss Variable / When It's Used (a scalar · scoreboard)
+
+- loss = **a single number (scalar)**. Current value = 1.3871. "How wrong the model is on average right now."
+- When it's used: in our hand-written code, **only for monitoring** (print it to check "is it going down?"). The weight update uses the **gradients (dz2, dW2…)**, not the loss number.
+- Key: we compute dz2 directly from output·y, not from the loss variable → in our code loss is effectively a **scoreboard**. (A framework's `loss.backward()` starts backprop from the loss node, but we derived the gradients by hand, bypassing the loss variable.)
+
+## 103. Why loss Is 1 Number but dz2 Is 4 / When Samples Get Combined
+
+- Confusion: "averaging should give 1 number" → yes, that's the **loss** (the average = one number, 1.3871). **dz2 is not the loss — it's the gradient**, so it's different.
+- **loss (1)** = the average of 4 sample-losses → 4 collapse to 1. **dz2 (4)** = "how sensitive that one loss is to each sample's direction" → one question per sample → 4 answers. (Grades: final = 1 number; "improve each test by 1 → how much does the final move" = 4 answers, each 1/4.)
+- **The 4 dz2 values are independent**: each row uses only its own sample's output·y. Sample 2 being very wrong doesn't change sample 0's value.
+- **Samples get combined at the next step, the weight gradient (dW2)**: a weight is one knob shared by all 4 samples, so deciding how to change it requires gathering all 4 samples' errors. The matmul in `dW2 = a1.T @ dz2` sums across the 4 samples to make one gradient per weight. (Analogy: one volume knob, 4 listeners → gather all opinions into one adjustment.)
 
 ---
 
