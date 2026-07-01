@@ -329,6 +329,10 @@ So I decided to try it.
 
 121. Why loss is 1 number but dz2 is 4 / when do samples get combined
 
+122. Is the gradient "the error size" / do we multiply the error onto the weight to move it
+
+123. The training loop + result — XOR actually solved (loss 1.39→0.0001)
+
 ---
 
 ## 1. Machine Learning (ML) and Deep Learning (DL)
@@ -1338,6 +1342,20 @@ A record of taking what I learned abstractly today and computing it myself with 
 - **loss (1)** = the average of 4 sample-losses → 4 collapse to 1. **dz2 (4)** = "how sensitive that one loss is to each sample's direction" → one question per sample → 4 answers. (Grades: final = 1 number; "improve each test by 1 → how much does the final move" = 4 answers, each 1/4.)
 - **The 4 dz2 values are independent**: each row uses only its own sample's output·y. Sample 2 being very wrong doesn't change sample 0's value.
 - **Samples get combined at the next step, the weight gradient (dW2)**: a weight is one knob shared by all 4 samples, so deciding how to change it requires gathering all 4 samples' errors. The matmul in `dW2 = a1.T @ dz2` sums across the 4 samples to make one gradient per weight. (Analogy: one volume knob, 4 listeners → gather all opinions into one adjustment.)
+
+## 104. Is the Gradient "the Error Size" / Do We Multiply the Error onto the Weight to Move It
+
+- Half right. ① The output error signal `dz2 ≈ prediction−answer` = the error itself (correct). But **a weight's gradient dW = error × the input that weight multiplied** (a1). Not "error alone" but "error × input," so even a big error gives zero gradient if the input was 0 (a dead neuron). = "how much this weight contributed to the error (its share of blame)."
+- ② Moving is subtraction, not multiplication: `new weight = old − learning_rate × gradient` (`W = W − lr·dW`). We don't multiply the gradient onto the weight; we take one step in the opposite direction of the gradient (toward lower loss), sized by the learning rate.
+- Why `−`? The gradient points toward higher loss → to reduce it, go the opposite way (note 35). Why small (lr)? Too big a step overshoots and diverges → small steps, many times (notes 35, 46).
+
+## 105. The Training Loop + Result — XOR Actually Solved
+
+- ⑥ update (4 lines: `W1 -= lr*dW1` etc.) + ⑦ wrap the whole thing (forward→loss→backprop→update) in a `for` loop for **10000 iterations**.
+- Structure: data & weight init **once, outside**; predict→loss→backprop→update **repeated inside the loop**; print loss every 1000.
+- Result: loss **1.3871 → 0.0001** (near zero). Final predictions `[0,1,1,0]` = answers `[0,1,1,0]` **exactly**. (The [1,0] sample, first predicted 0.014 — the opposite — is corrected to ~1.)
+- Meaning: proves the hand-written forward + backprop **actually works**. Solves XOR, which a single layer can't, thanks to the **hidden layer + ReLU** (notes 63, 64 "why stack layers + why ReLU" proven in code).
+- Setup: lr=1.0, 10000 epochs, seed 42. By epoch 1000 the loss was already 0.0015 — essentially solved.
 
 ---
 
