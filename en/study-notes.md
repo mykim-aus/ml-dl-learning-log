@@ -269,6 +269,8 @@ So I decided to try it.
 
 **Implementing Forward + Backprop from Scratch in NumPy (hands-on, 2026-07-01)**
 
+> Code: [backprop.py](../code/backprop-numpy/backprop.py) — studied by **filling it in line by line**, answering questions from the AI.
+
 93. How the derivative formulas in backprop work
 
 94. What exactly is a hidden neuron — is it a weight set
@@ -1089,8 +1091,8 @@ A record of taking what I learned abstractly today and computing it myself with 
 
 ## Hands-on Session: Forward + Backprop from Scratch in NumPy (2026-07-01, in progress)
 
-> Writing, line by line, the code for a 2-layer neural network that solves XOR (`code/backprop-numpy/backprop.py`).
-> Method: the AI does not implement it for me. AI asks a question → I answer → if correct, that line gets added.
+> Code: [backprop.py](../code/backprop-numpy/backprop.py). Writing, line by line, a 2-layer neural network that solves XOR.
+> Method: the AI does not implement it for me. **AI asks a question → I answer → if correct, that line gets added** — filling it in line by line.
 > Why XOR: it can't be split by a single straight line, so it's the smallest problem that **requires a hidden layer + ReLU**. The goal is to prove "why stack layers and why bend with ReLU" in code.
 
 **Questions I asked this session**
