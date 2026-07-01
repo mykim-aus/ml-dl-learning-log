@@ -267,6 +267,44 @@ So I decided to try it.
 
 92. Whether trees need layers
 
+**Implementing Forward + Backprop from Scratch in NumPy (hands-on, 2026-07-01)**
+
+93. How the derivative formulas in backprop work
+
+94. What exactly is a hidden neuron — is it a weight set
+
+95. Why stacking 8 weight sets gives `(8, 2)` (how to read a matrix's shape)
+
+96. Why we do matrix multiplication / does multiplying produce weights faster
+
+97. What bias is and what `b1` means
+
+98. Whether the bias value goes in randomly / what `b1` is at the first run
+
+99. Whether bias is carried along in the forward pass like an input, or is a separate parameter
+
+100. Broadcasting — adding arrays of different shapes / how bias gets added in the forward pass
+
+101. What z (weighted sum) and a (activation output) mean in the forward pass
+
+102. Why we need to make W2 when W1 already has 8 neuron sets
+
+103. Why there's one bias per neuron (8) / why it's not a single fixed `+1`
+
+104. Why b1 has 8 and b2 has 1 / at which stage the bias is added
+
+105. Why the output layer uses sigmoid instead of ReLU (activations differ by layer)
+
+106. What happens to W·b with 3+ layers (extending manually)
+
+107. Do frameworks build layers in a loop instead of one variable at a time
+
+108. Who decides how many hidden neurons per layer, and on what basis (hyperparameters)
+
+109. Is z2 a matrix / what the intermediate raw score means / how a probability comes from it
+
+110. Is it z2 or -z2 that goes into exp / why sigmoid has this shape / does z2=1 mean 100% confidence
+
 ---
 
 ## 1. Machine Learning (ML) and Deep Learning (DL)
@@ -1046,6 +1084,155 @@ A record of taking what I learned abstractly today and computing it myself with 
 - **Loss isn't set by the frame — you choose it separately, by the type of problem**: regression → MSE, classification → cross-entropy. Even for the same neural network, regression → MSE, classification → cross-entropy.
 - Separating the three makes it clear: **① the frame** (prediction structure + learning method), **② the loss** (grading criterion, chosen by problem type), **③ learning** (the frame improving in its own way by looking at the loss). "Frame = loss algorithm" is wrong.
 - Analogy: the student (the frame, the one solving problems) / the grading criteria (the loss, set by problem type) / the study method (learning, different for each student). The student ≠ the grading criteria.
+
+---
+
+## Hands-on Session: Forward + Backprop from Scratch in NumPy (2026-07-01, in progress)
+
+> Writing, line by line, the code for a 2-layer neural network that solves XOR (`code/backprop-numpy/backprop.py`).
+> Method: the AI does not implement it for me. AI asks a question → I answer → if correct, that line gets added.
+> Why XOR: it can't be split by a single straight line, so it's the smallest problem that **requires a hidden layer + ReLU**. The goal is to prove "why stack layers and why bend with ReLU" in code.
+
+**Questions I asked this session**
+
+76. How do the derivative formulas in backprop work
+77. What exactly is a hidden neuron — is it a weight set
+78. Why does stacking 8 weight sets give `(8, 2)` (how to read a matrix's shape)
+79. Why do we do matrix multiplication / does multiplying produce weights faster
+80. What is bias and what does `b1` mean
+81. Does the bias value go in randomly / what is `b1` at the first run
+
+## 76. The Derivative Formulas in Backprop (for one layer)
+
+- The core is the **chain rule**: stitch derivatives together from the back (loss) toward the front.
+- Notation: `z = W·x + b`, `a = activation(z)`, loss `L`.
+- It gets clean if you define `δ = derivative of loss L with respect to z`:
+  - `δ = (dL/da) × activation'(z)`
+  - Weight gradient: `dL/dW = product of input x and δ` (as matrices, `xᵀ · δ`)
+  - Bias gradient: `dL/db = δ` (summed over the samples)
+  - Signal to pass to the previous layer: `dL/dx = δ · Wᵀ`
+- Activation derivatives: ReLU' is `(1 if z>0 else 0)`, sigmoid' is `a(1−a)`.
+- Special case: with **sigmoid+BCE** or **softmax+cross-entropy**, the output-layer δ falls out to simply `prediction − answer`.
+
+## 77. What a Hidden Neuron Is = One Weight Set
+
+- One hidden neuron = **[one weight set] + [one bias] + [passing through an activation function]**.
+- A neuron takes all the inputs, makes a weighted sum with its own set → adds bias → ReLU → emits **one number**.
+- With 2 inputs, one set = 2 weights. 8 neurons = 8 sets = **8 columns** of `W1`.
+- If all sets were identical, the 8 neurons would learn the same thing and be no better than 1 → so they start random and different (symmetry breaking).
+
+## 78. How to Read a Matrix Shape `(rows, cols)` / Why Sets Stand as Columns
+
+- `(rows, cols)` = (how many lines going down, how many numbers going across). It's just a label recording the "layout."
+- Stack a set `[0.5, 0.1]` as **rows** 8 times → `(8, 2)`; stand them as **columns** and place 8 side by side → `(2, 8)`. Same sets, only the orientation differs.
+- For `X @ W1` to work, W1's **rows = X's columns (2)**. So the answer is `(2, 8)`, with each set standing as a vertical **column**.
+- Intuition: one cell of a matrix-mult result = the dot product of (one row of X: a sample's features) · (one column of W1: one neuron's set) = that neuron's weighted sum.
+
+## 79. Why We Do Matrix Multiplication (it "uses" weights, it doesn't "find" them)
+
+- Matrix multiplication doesn't produce weights. It's **the forward-pass computation that makes the weighted sum (prediction)**. Finding weights is done by backprop (differentiation) + the update (note 23).
+- What it does = batching all the per-sample, per-neuron "multiply and add" into one operation (a double loop written as the single line `X @ W1`).
+- The amount of computation (number of multiply-adds) is the same as the loop. It's faster because **hardware (BLAS, tensor cores) runs matrix multiplication ultra-fast and in parallel**. → not "weights come out faster" but "the prediction computation finishes faster."
+
+## 80. What Bias Is / What `b1` Means
+
+- Bias = the `+b` in `y = w·x + b`. Unlike the slope (w), it's the **starting height (y-intercept)**. A neuron's "default starting point before it looks at any input."
+- Without it, the line must pass through the origin (0,0). In particular, when the input is `[0,0]`, the weighted sum is 0 regardless of the weights → without bias that neuron emits only 0 forever. With bias, `z = 0 + b = b`, so it can still respond.
+- `b1` = the bundle of biases for layer 1 (hidden layer). One per neuron → 8. (`b2` is the output-layer bias; 1 output neuron → 1.)
+- `np.zeros((1, 8))` = a zero-filled `(1 row, 8 cols)` array → `[[0,0,0,0,0,0,0,0]]`. `(1,8)` isn't "1 and 8 as two meanings" — it's **one shape (1 row × 8 cols)**. **8 (cols) = the 8 neurons (one bias each), 1 (row) = a single row for broadcasting** (bias is one set, independent of samples). `(8,)` (1D) would also work, but since z1 is 2D `(4,8)`, shaping bias as `(1,8)` keeps the alignment clean.
+
+## 81. Why Bias Starts at 0 / What `b1` Is at the First Run
+
+- `b1` at the first run = `np.zeros((1, 8))` = just **eight zeros** `[[0,0,0,0,0,0,0,0]]`.
+- The sharp question: "You said bias is what keeps `[0,0]` from passing through 0 — but if it starts at 0, isn't z still 0 on the first step?" → Correct. **On the first step, `[0,0]`'s z1 really is 0.**
+- The key shift: the reason bias exists is **not "to be nonzero from the start" but "to be able to become nonzero."** Bias is a learned parameter, so backprop pushes it from 0 to whatever value is needed.
+- The decisive difference (why only bias can rescue `[0,0]`): for the `[0,0]` sample, the **weight gradient is 0** (`dW = input × δ`, and the input is 0). So weights can't learn anything from `[0,0]`. But the **bias gradient is not multiplied by the input** (`db = δ`). → Bias is the only parameter that can learn even from `[0,0]`.
+- That's why it doesn't need to be random: starting at 0 is fine because backprop moves it. (Weights must be random to break symmetry, but bias has no such reason, so it's 0.) The initial value is just a starting point — both W1 and b1 get adjusted by training anyway.
+
+## 82. Bias Is Not an Input — It's a Separate Parameter
+
+- Numbers inside the model fall into two groups: **data** (input X, answer y — given from outside, changes per sample, not learned) vs **model parameters** (W1, b1, W2, b2 — owned by the model, shared across the batch, learned by backprop).
+- Bias is a **parameter**. It isn't carried along with the input; it sits inside the model and is added during the forward pass. In `z1 = X @ W1 + b1`, only X flows in from outside; W1 and b1 stay put.
+- Analogy (note 11): W and b = the fixed fixtures of a factory machine (tuned by training), X = raw material passing through. Bias is on the machine side.
+- Why it's confusing = the **bias trick**: prepend a constant-1 fake input and treat bias as its weight, so `[1,A,B]·[b,w_A,w_B] = bias + weighted sum`. That makes bias look like it rides along as an input. But our code (and most modern frameworks) keep b separate.
+
+## 83. Broadcasting — Why Arrays of Different Shapes Can Still Be Added
+
+- Normally addition only works between **the same shapes**. But when shapes differ, NumPy automatically **stretches (copies) the smaller one** to match = broadcasting.
+- The rule: compare the two shapes **from the right**. Each position is OK if it's ① equal or ② one side is 1, and the side that's 1 gets stretched.
+- Example: `(2,3) + (1,3)` → the single row is copied across both rows. `[1,2,3] + 10 = [11,12,13]` is the same idea (a scalar stretched).
+- **Where it's used in our code = the forward pass** `z1 = X @ W1 + b1`. `X @ W1` is `(4,8)`, `b1` is `(1,8)`. The rows don't match (4 vs 1), but the columns do (8 = 8) → b1's single row is copied onto all 4 samples = "the same bias for a neuron applied to every sample." Exactly the behavior we want.
+- That's why b1 was shaped `(1,8)` rather than `(8,)`. And it doesn't actually copy memory — it just reuses the values → fast, too.
+
+## 84. Forward-Pass Notation — z (weighted sum) and a (activation output)
+
+- Each layer has **two steps**: **`z` = the weighted sum** (input × weights + bias, the raw value before activation), **`a` = z passed through the activation function** (the layer's final output).
+- The trailing number is the layer index: `z1`/`a1` = layer 1, `z2` = layer 2.
+- Our 2-layer flow: `X (4,2)` → `z1 = X@W1+b1 (4,8)` → `a1 = ReLU(z1) (4,8)` → `z2 = a1@W2+b2 (4,1)` → `output = sigmoid(z2) (4,1)`.
+- Key: **`a1` (layer 1's output) is exactly layer 2's input.** Previous layer's output → next layer's input = what "stacking layers" means (notes 53–64). "z" and "a" are conventional names (z = pre-activation, a = activation).
+
+## 85. Why We Need W2 When W1 Already Has 8 Sets (each layer has its own wiring)
+
+- What W1's 8 sets produce is not "the answer" but **8 intermediate ingredients (a1)**. Combining those 8 back into "1 answer" also needs weights = W2.
+- W1 = wiring from input layer (2) → hidden layer (8) (16 weights). W2 = wiring from hidden layer (8) → output layer (1) (8 weights). They connect **different pairs of layers**, so each has its own weights.
+- Why collapse to 1: the final answer is 1 per sample (XOR 0/1), but after the hidden layer you get 8 numbers per sample. W2 weighs those 8 clues and combines them into 1 (note 74, "only the last layer is fitted to the output count").
+- Analogy: the 8 hidden neurons = 8 observers each catching a different clue; W2 = the one judge combining them into a final call. (XOR can't be solved by a direct single layer — it needs the hidden layer + ReLU, then combining; notes 63–64.)
+
+## 86. Why There's One Bias per Neuron (8) / Why It's Not a Fixed `+1`
+
+- Misconception 1: bias = a fixed `+1`? → ❌ It's a **learned parameter** that starts at 0 and is adjusted by backprop (section 81). Not "+1" but "+b, with b learned."
+- Misconception 2: one bias is enough? → ❌ There's **one per neuron**, so 8. Expanding z1, each neuron gets its own bias: `neuron j's z = (neuron j's weighted sum) + b1[j]`.
+- If all 8 shared one `+1`, all 8 would shift identically and couldn't capture different features → the **same reasoning** as splitting weights into 8 sets (each must be independent).
+- So b1 has as many as there are neurons = 8 → `(1,8)`. b2 has 1 (one output neuron) → `(1,1)` (here it really is a single value).
+- Aside (shape visualization): W1 `(2,8)` holds each set as a **vertical column**, 8 of them (transpose = the `(8,2)` KIM pictured). W2 `(8,1)` is 8 values in a **vertical column** (each hidden neuron's contribution to the output).
+
+## 87. b1 Has 8, b2 Has 1 — Bias Count = That Layer's Neuron Count / Where It's Added
+
+- Rule: **each layer's bias count = that layer's neuron count = the number of columns in that layer's z.**
+  - Hidden layer 8 neurons → b1 has 8 → `(1,8)`. Output layer 1 neuron → b2 has 1 → `(1,1)`.
+- Where it's added: each bias is added at **its own layer's `+b` step** (right after that layer's matmul, before activation).
+  - `z1 = X@W1 + b1` ← b1 at the hidden layer (the step that makes the intermediate values a1).
+  - `z2 = a1@W2 + b2` ← b2 at the output layer (the step that makes the **final** value, not an intermediate one).
+- Correction point: b2 is added at the final-output step, not an "intermediate value" step. The one added at the intermediate (a1) stage is b1.
+
+## 88. Why the Output Layer Uses sigmoid, Not ReLU (activations differ by layer)
+
+- Activation functions play different roles per layer. **Hidden layer = ReLU** (nonlinearity / bending, range 0~∞), **output layer = sigmoid** (turns the result into a 0~1 probability).
+- XOR's answer is 0/1, so the final output must be a "probability of being 1 (0~1)" to be compared with the answer (loss). ReLU ranges 0~∞ so it could output `5, 100` — not a probability. sigmoid squashes any number into 0~1 (`sigmoid(0)=0.5`, `-∞→0`, `+∞→1`).
+- So after the hidden layer, `a1 = ReLU(z1)`; after the output, `output = sigmoid(z2)`. (Correction: don't use ReLU at the output.)
+- NumPy: `output = 1 / (1 + np.exp(-z2))` (`np.exp` = e to the power).
+- `np.exp(x)` made simple: the special number `e(≈2.718)` multiplied x times (divided if negative). **Always positive, exp(0)=1, explodes for positive, approaches 0 for negative.** So the denominator `1+exp(-z2)` is always >1, keeping sigmoid strictly within 0~1 (big positive z2→1, 0→0.5, big negative→0).
+
+## 89. What If There Are 3+ Layers / How Frameworks Build Layers
+
+- **3+ layers**: the same pattern repeats. Each layer has a W·b connecting `(previous layer size) → (this layer size)`. E.g., sizes `2→8→6→1` give W1(2,8), W2(8,6), W3(6,1), with each b as `(1, layer size)`. The forward pass repeats `(matmul + bias + ReLU)`, with only the last using sigmoid.
+- **Key rule**: adjacent layer sizes must interlock — the columns of the earlier W = the rows of the next W (earlier layer's output = next layer's input). That's what lets the matrix multiplications chain.
+- **Frameworks**: you just "declare" layers, and the framework creates/initializes/trains the W·b automatically. One `nn.Linear(2,8)` = our `W1+b1`. You can list them with `nn.Sequential(...)` or build them in a loop. It also does backprop automatically via autograd.
+- So doing it by hand is learning what happens inside the framework. (Detail: `nn.Linear` stores its weight as `(out,in)` and computes `x@W.T` — only the orientation differs.)
+
+## 90. Who Decides How Many Hidden Neurons per Layer, and on What Basis (hyperparameters)
+
+- **Who**: the human (engineer). It's not learned — it's a setting chosen before training = a **hyperparameter** (note 22). Weights are learned, but "how many neurons / how many layers" is set by a person beforehand.
+- **Basis**: no fixed formula; mostly experience, convention, experiment.
+  - Problem difficulty: complex patterns → more neurons/layers, simple → fewer.
+  - Starting-point convention: often powers of 2 (8, 16, 32, 64…). A heuristic, not a law.
+  - Adjust via validation: too few → underfitting (can't capture the pattern), too many → overfitting + slow + wasteful (notes 30, 31). Tune while watching the validation score.
+  - Automated search: hyperparameter tuning (grid/random search, Bayesian), and further NAS (neural architecture search).
+- Our XOR's 8: theoretically 2 hidden neurons suffice, but 8 gives margin for stable training. An example of the "enough + margin" heuristic.
+
+## 91. z2 Is a Matrix (raw scores) / What the Intermediate Value Means / Turning Scores into Probabilities
+
+- z2 isn't a scalar — it's a **`(4,1)` matrix**, one raw score per sample. exp and sigmoid apply **element-wise** (each cell separately). (The earlier "z2=5" was just one cell.)
+- What a z2 value means = a **raw score (logit)**: how much that sample "leans toward class 1." Positive = toward 1, negative = toward 0, magnitude = confidence. But its range is unbounded, so it's **not yet a probability**.
+- Turning score → probability is exactly what **sigmoid** does: it translates each score into 0~1. The sign decides above/below 0.5, the magnitude decides the distance. `z2=0` → exactly 0.5.
+- Actual: z2 `[0, 0.525, -4.229, -1.842]` → output `[0.5, 0.628, 0.014, 0.137]`.
+
+## 92. Why sigmoid Has the Shape `1/(1+exp(-z2))` / Why You Never Get 100% Confidence
+
+- Note: what goes into exp is **`-z2`**, not z2. For z2=0.525, sigmoid uses **`exp(-0.525)=0.592`**, not `exp(0.525)=1.69`.
+- Why "add 1 and divide 1 by it" = the device that **bounds the result to 0~1**. `exp(-z2)` is always positive (0~∞) → `1+exp(-z2)` is always ≥1 → `1/(1+...)` is always in 0~1. Big denominator → near 0; denominator near 1 → near 1.
+- Example: z2=0.525 → `exp(-0.525)=0.592` → `1+0.592=1.592` → `1/1.592=0.628` (matches the actual output).
+- Does z2=1 mean 100% confidence? ❌ `sigmoid(1)=1/(1+0.368)=0.73` (73%). To reach exactly 100% (=1) you'd need z2=+∞ → a finite score never lands exactly on 0 or 1, only approaches them.
 
 ---
 
