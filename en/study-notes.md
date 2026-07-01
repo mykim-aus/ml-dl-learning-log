@@ -38,6 +38,15 @@ So I decided to try it.
 
 ---
 
+> ⚠️ **This was about linear regression (the deep-learning family that learns via gradient descent).**
+> The loop above fits linear regression, neural networks, CNNs, and LLMs — but it's **not how all machine learning works.**
+> Decision trees, KNN, and others don't use weights or differentiation; they learn in other ways.
+
+> **2026-07-01 — I realized that depending on the model (the "frame"), there may be no weights and no layers at all.**
+> Layers, weight sets, and ReLU are all **components exclusive to the neural-network family.** A tree learns through questions (branches).
+
+---
+
 ## The Questions Covered in This Session
 
 **Machine Learning / Deep Learning Basics**
@@ -201,6 +210,62 @@ So I decided to try it.
 67. The exact difference between linear regression and classification
 
 68. Why there are multiple evaluation metrics (MAE, RMSE, R²), and what to judge by
+
+**How Layers, Sets, and Features Relate (the second section we dug deepest into)**
+
+69. The principle of getting closer to the answer via matrix multiplication and bending / who created this principle
+
+70. Whether each layer is trained simultaneously, or optimized in order from layer 1
+
+71. Whether having multiple weight sets is separate from layers (horizontal vs. vertical)
+
+72. Where layer 2's sets come from / the rules for the number and size of sets
+
+73. Whether layer 2's sets are fixed at 1, or change dynamically
+
+74. What situation calls for 3 or 4 layers / whether only the last layer is fitted to the output
+
+75. Which layer's weights are used during actual use (inference)
+
+76. Whether, with 5 layers, the answer comes from the layer closest to the correct answer
+
+77. Whether layer 2's weights are layer 1's gradient multiplied in (forward pass vs. backpropagation direction)
+
+78. Whether an intermediate value is one feature, or a layer is one feature
+
+79. How features arise from random weights
+
+80. Whether it's bad for the weight sets to be too similar (initialization)
+
+**Turning Data into Numbers (Feature Encoding)**
+
+81. What one-hot encoding is
+
+82. When you need embeddings
+
+83. Whether changing the features (inputs) means retraining the model
+
+**Digging Deeper into Embeddings**
+
+84. Whether embeddings cluster similar words together in vector space
+
+85. What each individual number inside an embedding vector means (is it a position?)
+
+86. Whether embedding numbers are learned the same way as in deep learning / who sets the vector length
+
+87. Whether you use embeddings for lookup, or as input
+
+88. How you feed an embedding array as input and normalize it
+
+**What Is a Model (a "Frame")? — where the map widened**
+
+89. Whether choosing the right one matters for embedding models too
+
+90. Whether "model" means the algorithm (frame), or taking a finished one and using it
+
+91. How the way weights are made differs by frame / whether loss is an algorithm for measuring
+
+92. Whether trees need layers
 
 ---
 
@@ -828,6 +893,162 @@ A record of taking what I learned abstractly today and computing it myself with 
 
 ---
 
+## 60. How Sets, Layers, and Intermediate Values Relate (the easy-to-confuse core)
+
+- **A weight set is not the same thing as a layer.** A set is "horizontal," a layer is "vertical."
+  - **Weight set (horizontal)**: the teammates lined up side by side *inside* one layer. Each looks at a different feature. N sets → N intermediate values.
+  - **Layer (vertical)**: the stages going measurements → intermediate values → final score. The previous layer's output is the next layer's input.
+- **The rules**: number of sets = that layer's **number of outputs** / the size of one set = that layer's **number of inputs.**
+  - E.g., layer 1 with 3 inputs (measurements) and 4 sets → 4 intermediate values. Layer 2 with 4 inputs (intermediate values) and 1 set → 1 final output.
+- **Where does set C (layer 2's weights) come from?** They're layer 2's own weights, prepared when you build layer 2. They start random just like layer 1's sets. Their size is fitted to the number of incoming inputs.
+- **One intermediate value = one feature** (a pointy ear, a long nose, etc. — an individual feature). **A layer = the stage that produces all of those features at once** (a layer is not one feature!).
+  - Widening (more intermediate values) = looking at more features at the same stage.
+  - Deepening (more layers) = combining features into a more complex level (line → curve → ear → face).
+
+## 61. How Many Layers? / Only the Last Layer Is Fitted to the Output
+
+- The number of sets and the number of layers are **hyperparameters a human sets in advance.** They don't change automatically during training (not dynamic). The counts are fixed; only the **values** inside the sets change through training.
+- **Only the "last layer" is fitted to the number of outputs.** With 3 layers, layer 3 is fitted to the number of answers; with 4, layer 4 is. The middle layers are free to choose their number of sets.
+  - E.g., 3-class classification → the last layer has 3 sets (a score per class). Middle layers can freely be 8, 4, etc.
+- You stack layers deep (3, 4, or more) **the more complex the problem is.** Simple → 1–2 layers; complex → tens to hundreds. More isn't automatically better (it gets heavier and risks overfitting).
+
+## 62. Layers Aren't "Competitors" — They're a Connected Pipeline / Inference Is Forward Pass Only
+
+- **The layers don't each put forward an answer candidate and compete.** The intermediate values (5, 10, 18…) aren't answers compared against the label — they're **intermediate material passed to the next layer.**
+- **The only thing compared against the answer is the single final output of the last layer.** "Which layer is closest to the answer" is meaningless (there's only one thing being compared, so there's no competition).
+- Differentiation doesn't "pick a layer" — it adjusts **all the layers' weights together** so the final output gets closer to the answer. (A relay race: one final time, and you fix every runner's form together.)
+- **Actual use (inference)**: you don't pick one layer — you **pass through all the layers in order** (layer 1 → 2 → … → final). This is the same as the forward pass during training, and it does **only the forward pass, no backpropagation** (which is why inference is lighter than training).
+- When training ends, every layer's weights are frozen and saved = that's "the model" (70 billion parameters = the sum of all the layers' weights).
+
+## 63. The Direction of Forward Pass vs. Backpropagation (layer 2's weights have nothing to do with layer 1's gradient)
+
+- A common misconception: "layer 2's weights are layer 1's gradient multiplied in" → **no.** Each layer has its own weights and is fixed by its own gradient.
+- A small example (measurement 2, w1 = 3, w2 = 4, answer 30):
+  - **Forward pass (front → back)**: 2 × w1 → 6 (intermediate value), 6 × w2 → 24 (final). Layer 2 multiplies layer 1's **intermediate value 6** by w2 (not the gradient!).
+  - **Loss**: 24 vs. 30 → difference −6.
+  - **Backpropagation (back → front)**: layer 2's gradient first (using intermediate value 6) → then layer 1's gradient (which uses **w2's value as an ingredient**). Differentiation flows **layer 2 → layer 1.**
+- In short: what gets multiplied is the **intermediate value** (forward pass); layer 2's weight being used on layer 1 happens in **backpropagation.** Two processes running in opposite directions.
+
+## 64. How Do "Features" Arise from Random Weights? / Weight Initialization
+
+- **Intermediate values aren't random** — they're the **result** of input × weight. What's random is the weights, and even those only **the very first time.**
+- In the random state there are no features. **Features arise through training (the pressure to get answers right)**: "when this intermediate value responds to a pointy ear, it turns out to get more answers right" → differentiation adjusts the weights in that direction → that intermediate value becomes an "ear detector." Nobody ordered it; the pressure to get answers right shapes it.
+- Why several intermediate values diverge into different features: if they all looked at the same thing, the information would be redundant — a loss → so they naturally differentiate.
+- **Why more intermediate values (features) is good**: combining several clues gives more accuracy. Looking only at ears, you'd mistake a Shiba Inu for a cat, but adding nose and body size, you won't be fooled. But too many gets heavy and risks overfitting → "a moderate amount."
+- **Weight initialization (a practical topic)**: if the sets are too similar — or **completely identical, which is the worst** — they all move the same way (the symmetry problem), and having multiple sets becomes pointless. So you **break the symmetry with randomness.**
+  - But not just any randomness — **randomness scaled to a suitable size** (too large → unstable, too small → the signal dies out). Xavier / He initialization, etc. PyTorch's `nn.Linear` applies this automatically.
+
+## 65. The Principle Behind Getting Closer to the Answer via Matrix Multiplication and Bending / History
+
+- **A three-part collaboration**:
+  1. **Matrix multiplication + bending (ReLU)** = preparing a "vessel (expressive power)" that can form any complex shape. (Multiplication = straight lines, bending = keeping the lines from collapsing together.)
+  2. **Loss** = measuring how far the current shape is from the answer.
+  3. **Differentiation → weight adjustment (training)** = reshaping that shape little by little to fit the answer.
+- Analogy: multiplication + bending = a lump of clay (the material), training = the hands kneading it toward the answer's shape. You need both to get close to the answer.
+- **Who invented it**: not one person's invention, but the sum of pieces across decades.
+  - Most famous: **Rumelhart, Hinton, and Williams in 1986** applied and popularized backpropagation for neural networks (Hinton won the 2024 Nobel Prize in Physics → "the godfather of deep learning").
+  - But the roots go back further: Werbos in 1974, and earlier math (the chain rule, control theory) before that. Who was first is still debated.
+  - Why it didn't work before the 1980s: the belief that "neurons are 0/1" led people to use chopping (discontinuous) activation functions that couldn't be differentiated, plus there was distrust that gradient descent only finds local minima.
+
+## 66. One-Hot Encoding — Categories as 0/1
+
+- **The problem**: the model only handles numbers, but you need to feed in categories (text like BROAD/PHRASE/EXACT).
+- **The bad way**: just numbering them (BROAD = 1, PHRASE = 2, EXACT = 3). → The model misreads the number's size as meaning ("EXACT is 3× BROAD," "PHRASE is in the middle"). It invents an order that isn't there.
+- **One-hot encoding**: make as many slots as there are types, and set only the matching one to 1, the rest to 0.
+  - BROAD → [1,0,0], PHRASE → [0,1,0], EXACT → [0,0,1]. Exactly one 1 per row (= hot).
+- The effect: the types become **equal, independent switches.** No fake order or size. Each type's effect can be learned independently.
+- **When to use it**: categories with few types (a handful to a few dozen) and no order (match type, channel, day of week, etc.).
+- **Watch out**: too many types (hundreds) → the slots explode → use embeddings or another method. If there really is an order (small/medium/large), numbering may carry meaning.
+- Analogy: a survey checkbox. Numbering blood types A/B/O/AB invites the "B is 2× A" misread → instead, check exactly one of four checkboxes.
+
+## 67. When You Need Embeddings
+
+- **When one-hot is enough**: few types + the items are on equal footing (no need to weigh similarity). E.g., match type, channel.
+- **Two signals that you need embeddings**:
+  1. **Too many types** → the one-hot slots explode (500 accounts → 500 slots, mostly 0). An embedding compresses them into a vector of just a few numbers.
+  2. **"Semantic similarity" between items matters** → one-hot can't capture that "plumber and electrician are similar" (they're all unrelated independent switches). An embedding makes similar items into similar vectors, so you can learn "similar things → similar results." (The king − man + woman = queen principle.)
+- **Important**: even when embeddings look necessary, **don't use them from the start.** First build a baseline with one-hot + hand-made features → add embeddings when performance falls short → compare. (Start simple; compare as you go.)
+- Analogy: an organizer box. Few types → divide it into slots (one-hot); many types or "similarity" matters → use property coordinates (embeddings).
+
+## 68. If You Change the Features (Inputs), You Have to Retrain the Model
+
+- Adding an embedding, etc., means **the input features change = the number of inputs changes = the model architecture changes** (number of weights = inputs × outputs). → You can't reuse the old weights → **retrain from scratch.**
+- This isn't a problem — it's the **normal, iterative improvement process**:
+  - Tabular data retrains fast (minutes to tens of minutes). Possible several times a day.
+  - The real-world flow = train a baseline → check the result → change features and retrain → compare → improve → retrain… repeated dozens of times.
+  - To know "did this feature help," you have to train anew and **compare**, so retraining is essential.
+- The baseline doesn't disappear — you keep it as a reference and compare the new version side by side (e.g., confirming R² 0.45 → 0.52).
+- Analogy: improving a recipe. Add a new spice (feature) and you cook from scratch again to compare the taste. The base recipe stays as the reference.
+
+## 69. What Do the Numbers Inside an Embedding Vector Mean?
+
+- Each number = a **position (coordinate) along some "meaning axis."** Like a map's [latitude, longitude], except with tens to hundreds of axes.
+- But those axes can't be named by humans (they're mystery axes the training created on its own = a black box). It's not the case that "axis 1 = industry."
+- **You shouldn't try to interpret each individual number.** The real meaning lies in **how close the whole vector is to other vectors (distance/relationship).**
+  - plumber [0.8,0.2,0.9] ↔ electrician [0.8,0.3,0.9]: close (similar) / dress [0.1,0.9,0.2]: far (different).
+- Similar words are **scattered smoothly across a continuous space** (not split into sharp groups). That's what makes direction arithmetic like "king − man + woman = queen" possible.
+- The value range isn't fixed to 0–1 (negatives and values above 1 appear too). Relative distance matters more than absolute magnitude.
+
+## 70. Embedding Numbers Are Also Decided by Deep Learning / Embedding Dimension
+
+- Embedding numbers = **learned weights.** Just like any other weight: random start → forward pass → loss → backpropagation → adjust → repeat.
+- Why "similar words get similar vectors" = **the pressure to get answers right.** Treating "king" and "queen" similarly makes it predict the next word better → differentiation adjusts the two embeddings toward being similar. (The same principle as the dog/cat model coming to look at ears without being told to.)
+- An "embedding model" is nothing special either — it's just a **deep-learning model whose purpose happens to be producing good embeddings.** The engine is the same.
+- **Embedding dimension (vector length = how many numbers)**: a **hyperparameter a human sets in advance** (like the number of layers or sets). The values come from training; the count comes from a human.
+  - Larger → more expressive power (capturing subtle meaning) but heavier and prone to overfitting. Smaller → lighter but underpowered.
+  - Roughly: small-scale / categories 8–50, words 100–300, large models hundreds to thousands. **Start small and scale up, comparing as you go.**
+
+## 71. Two Ways to Use an Embedding as Input (lookup vs. built-in)
+
+- **Way A (lookup)**: pull the embeddings out in advance and use them as **fixed input features.** They don't change during training. Simple, reusable. → **Use this first for a baseline.**
+- **Way B (built-in learning)**: put the embedding in as the prediction model's first layer and **train it together, toward the goal (e.g., CPC).** Optimized precisely for that problem, but more complex and needs a lot of data.
+- Analogy: buying a finished translation dictionary and using it (A) vs. building your own dictionary for your problem (B). A first; B if A falls short.
+- Note: even in way A, **adding** the embedding to the input **increases the number of inputs**, so the prediction model needs retraining (the embedding itself is fixed; the prediction model is retrained).
+
+## 72. How to Feed an Embedding Array as Input / Matching the Scale
+
+- **Even though it's an array, it just gets multiplied in.** The input [2,3,1] we learned about today was also an array, and each number in it was multiplied by a weight. An embedding [0.1,0.5,0.8] is the same — each number × each weight.
+- **Combining several features = concatenating into one long array**: [word count, urgency] + embedding [0.1,0.5,0.8] → [word count, urgency, 0.1, 0.5, 0.8]. You unpack the embedding bundle and lay it out alongside the other features. No normalization is needed for the multiplication.
+- **Embeddings aren't forced into 0–1** — you leave the values the model gave. Forcing them distorts the distances between vectors (the meaning).
+- **What "matching the scale (normalization)" really means**: not "match it to the embedding," but **transform each feature independently by the same rule (e.g., mean 0, spread 1)** → so they all end up in a similar range. It's not cramming them into each other; it's measuring with the same ruler.
+  - Method 1: leave the embedding alone and normalize only the other features (search volume, etc.). / Method 2: transform everything, embedding included, by one rule.
+  - The goal: keep one feature from burying the others just because it's large (today's "the fake influence of a big number").
+  - Analogy: to compare exam scores from different countries (out of 100 / GPA 4.0 / out of 20), you convert them all to the same basis — "percentile."
+
+## 73. The Two Meanings of "Model" — Algorithm (Frame) vs. Finished Product
+
+- The same word "model" refers to two things (hence the confusion):
+  - **① The algorithm (frame)**: a **learning method / prediction structure** like "linear regression, decision tree, neural network." Not yet trained (the weights are empty). = a kind of recipe.
+  - **② The trained result**: that frame with data fed in and **the weights fixed.** = the finished dish. (70 billion parameters is this.)
+- **Linear regression, classification, trees = ① (frames).** You take a frame from a library and train it **on your own data** with `.fit()`.
+  - `model = LinearRegression()` (the frame, an empty shell) → `model.fit(X, y)` (trained → finished product).
+- **Transfer learning, off-the-shelf embeddings = ② (finished products).** You take something someone else already trained on massive data (ResNet, etc.).
+- How to tell them apart: "before training / choosing an algorithm" → ① (frame), "after training / performance and results" → ② (finished product).
+- Analogy: a car. ① = the model/blueprint ("shall we go with a sedan?"), ② = the finished car ("this car runs well"). Linear regression = take the blueprint and assemble it on your data; transfer learning = buy the finished car.
+
+## 74. Each Frame Has Its Own "Learning Method" (there may be no weights at all)
+
+- "Compute a gradient to get new weights" is **the method of the neural-network / linear-regression family only.** Not every frame works that way.
+- What "learning" actually is differs completely by frame:
+  - **Linear regression / neural networks**: adjust weights little by little via differentiation.
+  - **Decision tree**: no weights! It finds "the question (if/else) that splits the data well." No differentiation either.
+  - **KNN (nearest neighbors)**: barely trains at all. It memorizes the data, then finds similar examples and follows their answers.
+  - **Gradient boosting (XGBoost, etc.)**: many trees, each new one correcting the previous one's mistakes. (Strong on tabular data.)
+- The only thing in common is the goal ("predict well"); **the methods are all different.** So you try several frames suited to the problem and compare.
+- That's why **layers, weight sets, and ReLU are all components of the neural-network family only** — trees don't have them (a tree has questions, branches, leaves). Today's deep dive into "why layers and ReLU are needed" is central to understanding neural networks but doesn't apply to trees.
+- Analogy: reaching a destination (prediction) by car (neural network, steering adjustments), by asking at each fork (tree), or by asking someone experienced (KNN). Each vehicle has different parts.
+
+## 75. Measuring Loss vs. Learning from Loss Are Separate / Loss Is Independent of the Frame
+
+- **Loss is measured from "prediction vs. answer," not from weights** = `(prediction − answer)²`. Weights don't appear in the loss formula. So **a frame with no weights (a tree) can still have its loss measured, as long as there's a prediction.**
+- The source of the confusion: thinking of "loss → differentiation → weight adjustment" as one bundle. That bundle is **the learning method of the neural-network family only.** A tree doesn't differentiate the loss to fix weights — it learns by "finding questions."
+  - Separate **"measuring loss"** (prediction vs. answer, possible anywhere) from **"adjusting weights from loss"** (neural networks only).
+- **Loss isn't set by the frame — you choose it separately, by the type of problem**: regression → MSE, classification → cross-entropy. Even for the same neural network, regression → MSE, classification → cross-entropy.
+- Separating the three makes it clear: **① the frame** (prediction structure + learning method), **② the loss** (grading criterion, chosen by problem type), **③ learning** (the frame improving in its own way by looking at the loss). "Frame = loss algorithm" is wrong.
+- Analogy: the student (the frame, the one solving problems) / the grading criteria (the loss, set by problem type) / the study method (learning, different for each student). The student ≠ the grading criteria.
+
+---
+
 ## The Big Picture at a Glance
 
 ```
@@ -844,6 +1065,18 @@ A record of taking what I learned abstractly today and computing it myself with 
       │
       ▼
 [Inference]    use the fixed weights to answer new inputs (real use)
+```
+
+**Inside one neural-network layer (the sets / intermediate-values view)**
+
+```
+measurements [2,3,1]
+   │  layer 1: several sets (each a different feature) → each set makes 1 intermediate value
+   ▼           (multiply and sum → bend with ReLU)
+intermediate values [6, 3, 8, ...]   ← features (ears, nose, fur …)
+   │  layer 2: take the previous intermediate values as input, multiply and sum again → ReLU
+   ▼
+intermediate values [...]  → … → last layer (fitted to # of outputs) → final score = answer
 ```
 
 ---
