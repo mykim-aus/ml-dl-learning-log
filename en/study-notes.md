@@ -331,8 +331,6 @@ So I decided to try it.
 
 122. Is the gradient "the error size" / do we multiply the error onto the weight to move it
 
-123. The training loop + result — XOR actually solved (loss 1.39→0.0001)
-
 ---
 
 ## 1. Machine Learning (ML) and Deep Learning (DL)
@@ -1356,6 +1354,136 @@ A record of taking what I learned abstractly today and computing it myself with 
 - Result: loss **1.3871 → 0.0001** (near zero). Final predictions `[0,1,1,0]` = answers `[0,1,1,0]` **exactly**. (The [1,0] sample, first predicted 0.014 — the opposite — is corrected to ~1.)
 - Meaning: proves the hand-written forward + backprop **actually works**. Solves XOR, which a single layer can't, thanks to the **hidden layer + ReLU** (notes 63, 64 "why stack layers + why ReLU" proven in code).
 - Setup: lr=1.0, 10000 epochs, seed 42. By epoch 1000 the loss was already 0.0015 — essentially solved.
+
+## 106. What Exactly Is the Gradient Number / lr=1 Doesn't Mean "Move by 1," It's "gradient × lr"
+
+- A gradient is not a position but a **rate of change (sensitivity)**: "if I nudge this weight up a tiny bit, how much does the loss change?" E.g. a dW2 value of −0.34 = "raise it by 1 → loss changes ~0.34," and the − sign = "raising it lowers the loss."
+- Sign = direction: **+** = raising it raises loss (should lower it) / **−** = raising it lowers loss (should raise it). So we always move **opposite** to the gradient (the minus in `W -= …`, note 35).
+- "Do we compute the level of deviation from 0?" Half right. The real deviation starts at the output's `output−y` (the error). A gradient of 0 means "flat = at the bottom," so no move. There's no separate step that compares the gradient itself against 0.
+- **Step = lr × gradient**. Even with lr=1 you move by "the gradient," not by 1. Each weight moves a **different** amount, by its own gradient (0 gradient → no move). lr is just the shared step-size multiplier on all of them (notes 35, 46).
+
+## 107. The Relationship Between the Weighted Sum z2 and the Answer y — Not Directly Comparable, sigmoid Is the Bridge
+
+- z2 (the weighted sum) is a raw score from −∞ to +∞; y is 0/1. **Different languages (ranges), so you can't subtract directly.**
+- The bridge = **sigmoid**: it squishes z2 into 0~1 (output = probability of being 1), translating it → only then is it in the same language as y and comparable.
+- Flow: `z2 → sigmoid → output → (compare) → y`. z2 and y have no direct relation; they must meet through output. The error (output−y) comes after (notes 76, 99).
+
+## 108. How sigmoid Works / Why z2=0 Gives 0.5 / 0.5 Is Not a Derivative
+
+- sigmoid = a **squishing (transformation) function**, not differentiation. It packs −∞~+∞ into 0~1.
+- The key is the denominator's `e^(−z2)`: e^(anything) is **always positive** → the result never leaves 0~1. Big positive z2 → e^−z2≈0 → ~1; big negative → e^−z2 explodes → ~0.
+- z2=0 → `1/(1+e^0)=1/2=0.5`. Meaning: the weighted sum is balanced = "50/50 between 1 and 0, don't know." The exact center of the S-curve.
+- Why e? ① the result can't escape 0~1 ② it's smooth so **differentiation later (backprop) comes out clean** (the real derivative shows up in dz2, note 99).
+
+## 109. output Is "the Probability of Being 1" — Low Isn't Bad / The Criterion for "Well Matched"
+
+- Read output in **one direction only: "probability of being 1."** 0.14 = "14% chance of 1" = "86% chance of 0" (confident it's 0).
+- **Well matched = output close to y** (not high/low per se). If y=1, higher is better; if y=0, lower is better. E.g. output 0.14 & y=0 → well matched. output 0.01 & y=1 → confidently wrong the other way (biggest penalty).
+- Distinction: **output = probability** (a prediction made without looking at the answer), **output−y = error** (the result of comparing with the answer). Two different things.
+
+## 110. When the Answer y Isn't 0/1 — Swap the Last Layer + Loss by Problem Type
+
+- Principle: **the last transform (sigmoid's slot) and the loss are chosen as a pair to match "y's shape."** The skeleton (forward→loss→backprop→update) stays the same; only these two are swapped.
+- y a **real number** (house price, temperature) → regression: **z2 as-is, no sigmoid** + **MSE** (squishing would make it impossible to represent a value like 500M).
+- y **one of several classes** (dog/cat/bird) → **softmax** (a probability distribution summing to 1) + **cross-entropy**, with y one-hot `[1,0,0]`.
+- The current sigmoid+BCE is just "the case where y is 0/1" (note 96). sigmoid+BCE also works if y is a real number in 0~1 (soft labels).
+
+## 111. loss Sits at the End of the Forward Pass (Just Before Backprop) / dz2 Is Its Derivative — Same Root, Different Role
+
+- Computing loss is **not backprop but the final knot of the forward pass**. Backprop **starts from** that loss. Order: predict→[loss]→differentiate (dz2)→…. loss sits right at the boundary before backprop.
+- Regression is the same: MSE at the end of the forward pass, `dz2 = 2(z2−y)/n`. In both binary and regression, **the starting signal ends up being "prediction−answer"** (sigmoid+BCE and linear+MSE are pairs whose derivatives line up cleanly, notes 93, 99).
+- `dz2 = (output−y)/n` is **the derivative of BCE with respect to z2** → same root as loss (the intuition is right). But **loss = one scalar for watching**, **dz2 = the differentiated gradient (the actual worker)** — different roles (note 102). The loss line (:39) is only used for printing; delete it and training still works — dz2 comes straight from output·y.
+
+## 112. Using All 4 output−y Values for the Gradient — Sign Gives Direction, One Weight Is Shared by 4 Samples So They're Combined
+
+- Actually, **the sign already gives each sample's direction**: + = predicted too high (push toward 0, ↓) / − = too low (push toward 1, ↑). Even one value like 0.5 tells you the direction.
+- Still, **why use all 4**: one weight **affects all 4 samples** → to decide "which way for this one," you must gather all 4 samples' demands (which **can conflict**) to get the net direction.
+- Where they combine = the matmul in `dW2 = a1.T @ dz2`: `dW2[j] = Σ a1[i,j]×dz2[i]` (sums the 4 samples, weighted by how active the neuron was for each, notes 100, 103).
+
+## 113. The Fundamental Reason for Dividing dz2 by 4 — Sum vs Average / "÷4 Isn't Mandatory (lr Absorbs It)"
+
+- ÷4 = turning a sum into an **average** (note 101). Experiment: duplicate the XOR data to 8 samples → the **sum** goes −0.72→−1.44 (2× → the step doubles → same data, yet it lurches) / the **average** stays −0.72/4 = −1.44/8 = **−0.18**. → the step isn't swayed by sample count.
+- **Key (new conclusion this session): ÷4 is convenience, not correctness.** Using `output−y` as-is still trains (the intuition is right). ÷4 keeps the **direction the same and only shrinks the magnitude to 1/4**.
+- That magnitude is **absorbable by lr**: ÷4 = making lr 4× smaller. Proof (db2): `1.0×(−0.18) = 0.25×(−0.72) = −0.18` (same result). The two knobs (÷N, lr) are really one.
+- The benefit of ÷N: **it decouples lr from the number of samples** → the same lr works regardless of batch size (without it you'd re-tune lr every time the count changes). That's why averaging is standard.
+- Rounding caveat: the comment numbers are **rounded to 2 decimals**. `0.50/4=0.125` shows as `0.12` in the comment. The first sample `[0,0]` has zero input and zero bias, so z2 is **exactly 0** → output **exactly 0.50** → dz2=0.125 (shown as 0.12).
+
+## 114. lr Is a Step Multiplier (gradient×lr) / The Update Is Subtraction, Not Multiplication / Overshooting
+
+- lr is not the step itself but the **multiplier on the gradient**. Even with lr=1 you move by "the gradient," not by 1; each weight moves by its own gradient (note 106).
+- **Update = subtraction**: `new W = old W − (lr × gradient)`. Not weight×gradient. Each weight is independent, so summing the moves into one "total" (e.g. 6) is meaningless.
+- **÷4 (or lowering lr) keeps direction & ratio, shrinks only the size.** Not "more balanced" but "all smaller." The move ratios (e.g. 1:2:3:4) stay identical; only the overall scale is 1/4.
+- **Overshooting**: too big a step leaps over the loss-valley floor and lands higher on the far side → bounces back and forth and diverges (loss blows up / NaN). Dropping ÷4 makes the effective lr 4× bigger (risky); shrinking lr to 0.25 restores safety (note 113).
+
+## 115. dW2 = a1.T @ dz2 — Gradient = Input × Error / dW2 Is Not a "New Weight" but an "Instruction"
+
+- **Gradient = (the input that flowed through the weight) × (the error out of it).** Forward z2=a1@W2, so W2[j] multiplied a1[j] → ∂z2/∂W2[j]=a1[j] → chain rule `dW2[j] = dz2 × a1[j]`.
+- **Why a product?** Both input and error must be nonzero to contribute; if either is 0 the gradient is 0 (a ReLU-dead neuron a1=0 → zero gradient even with big error).
+- Measured dW2[0] = sum over samples of (a1×dz2): only sample 2, active (0.50) × big error (−0.246) = −0.12, dominates; dead samples 0·1 contribute 0. The matmul does 8 weights × 4 samples at once (notes 100, 112).
+- ⚠️ **dW2 is not a new weight.** Backprop (42–48) only computes each weight's **gradient (d__) = an instruction**. New weights are made in the **update step** (`W2 -= lr*dW2`, 51–54). Flow: dz2(error)→dW2(gradient)→[update]new W.
+
+## 116. Why "Contribution" Is Called "Gradient" (contribution = sensitivity = slope)
+
+- A gradient literally means "how much the loss changes if you nudge this value" = (Δloss)/(Δweight) = slope (notes 99, 106).
+- **Contribution = gradient = the same number**: a big contributor = nudging it swings the loss a lot = steep slope; zero contribution = nudging does nothing = flat (zero gradient).
+- Flow: nudge W → z changes by (input) → loss changes by (input×error). That "input×error" (the contribution) IS "how much the loss changes when nudged" (the gradient).
+- Picture: x-axis = W value, y-axis = loss curve. dW = the slope of that curve at the current point — hence "gradient." Being a slope, it tells the direction & size to descend, used in the update.
+
+## 117. db2 = np.sum(dz2) — Why the Bias Gradient Is Just a Sum / The Purpose of Bias
+
+- **The bias gradient is simple because its "input" is 1.** Forward z2=a1@W2+b2, b2 is just added (not multiplied) = ×1 → ∂z2/∂b2=1 → `db2 = 1×dz2 = dz2` → sum over 4 samples = np.sum(dz2). (Number: sum = −0.18.)
+- **Same formula as dW2** (Σ input×error); for bias the input is 1 so the multiply disappears, leaving a plain sum. Not "we chose to keep it simple" — the math just came out simple.
+- **Purpose of bias = intercept (offset)**: removes the forced pass-through-origin (y=ax → y=ax+b); z can be nonzero even when input is 0. Shifts the ReLU firing threshold.
+- The purpose (intercept) and the reason the gradient is simple (input=1) are **separate**.
+
+## 118. da1 = dz2 @ W2.T — Returning the Error to the Hidden Layer (symmetry rule, intermediate gradient)
+
+- **da1 = weight (W2) × error (dz2).** Forward z2=a1@W2, so ∂z2/∂a1[j]=W2[j] → `da1[j] = dz2 × W2[j]`.
+- **Symmetry rule**: reversing a multiply = **error × the OTHER input**. dW2 multiplies by its partner a1; da1 multiplies by its partner W2.
+- ⚠️ **da1 is neither a new weight nor for updating** → an **intermediate gradient** (note 98): the new "error signal" returned to the hidden layer, a stepping stone to reach W1 (the hidden layer takes over dz2's role). a1 is not a parameter.
+- **W2.T (transpose)**: flips the forward direction (8 neurons→1 output) into the backward direction (1 output error→8 neuron errors). Shape (4,1)@(1,8)=(4,8) = same as a1. Each row = dz2[sample]×W2 (one output error spread over 8 neurons by W2's size). Measured da1 values added to the code snapshot.
+
+## 119. What Exactly Is a Hidden Layer
+
+- A neural net = **input layer → hidden layer → output layer**. The hidden layer = the **intermediate computed layer** between input and output. In this code, **a1 (8 neurons)**.
+- **Why "hidden"**: you feed the input and read the output, but the middle a1 is computed internally — you neither see nor set it. The network decides it on its own during training.
+- **What it does**: builds intermediate features between input and output (pixels→[ears·nose·fur]→dog/cat). Solves XOR (unsolvable by a single layer) via hidden layer + ReLU (notes 63, 64, 105).
+
+## 120. What the Weighted Sum (z) Means — Not a Probability or an Error but a "Combined Score"
+
+- z = a **combined score (evidence)**: it weights each input by its importance and sums into one number = "how much of this neuron's feature is present." Analogy: a weighted grade average (mid×0.3+final×0.5+hw×0.2).
+- **Not a probability** (that comes after sigmoid, 0~1). **Not an error** (error = output−y needs the answer y; z is computed without y).
+- **"Contribution" view**: each term (input×weight) = one contribution; z = the **sum** of contributions. z is the "sum," not a "contribution" itself.
+- ⚠️ Distinguish two "contributions": **forward contribution** (input→score, this z) vs **backprop contribution** (weight→error = gradient, notes 115, 116).
+
+## 121. Why Backprop Works "Exactly" — One Connected Function + Gradient Checking
+
+- **Principle**: the whole network is one connected function (weight→weighted sum→ReLU→…→prediction→loss). Nudging any weight sends a ripple all the way to the loss, exactly.
+- **Why exact?** Each step's local slope is exactly known (multiply→input, ReLU→0/1, sigmoid→out(1−out)). Multiplying them along the path (chain rule) = the exact weight→loss effect. Not an approximation.
+- **Proof = gradient checking (poke it)**: nudge a weight by ε and measure `(L(w+ε)−L(w−ε))/2ε` — matches the backprop gradient to 12 decimals (verified). This is how you check a hand-written backprop.
+- **Why the weighted sum is central**: z=w·x, so ∂z/∂w=x → the forward ingredients (inputs X·a1) are exactly the backprop gradient's ingredients. The weighted-sum structure is what makes the gradient computable (dW2=a1.T@dz2, dW1=X.T@dz1 reuse the inputs).
+- A zero gradient is also "exactly zero": nudging a weight feeding a dead neuron doesn't move the loss (measured 0 too).
+
+## 122. Single Layer (No Hidden Layer) = Logistic Regression / The "1" in "Probability of 1" Is the Label
+
+- With no hidden layer this layer is the output layer → weighted sum → sigmoid → prediction. = **single layer = logistic regression**. E.g. sigmoid(−0.47)≈0.38.
+- Activation depends on the **layer's role**: hidden = ReLU (pass/block features), output = sigmoid (0~1 probability, to compare with y). sigmoid is normally only for the last layer.
+- **The "1" in "probability of 1" = one of the two label values (0/1) of the answer y** (not a probability or a count). sigmoid output = P(answer=1); P(0)=1−output. In XOR, "1" = the two inputs differ. (0/1 are just names for the two classes, as numbers so the math works.)
+
+## 123. How a Single Multiplication Classifies 0/1 — Learned Weights = the Rule, Weighted Sum = a Straight Boundary
+
+- **The current prediction (0.38) is meaningless**: the weights are random (seed 42). For predictions to be right the weights must be **trained** (= why backprop exists). The multiplication doesn't "know"; the **trained weights store the rule** and the multiplication just applies it.
+- **Mechanism**: the weighted sum = an "evidence score for 1." Positive weight = a bigger input pushes toward 1, negative = toward 0. z big positive → sigmoid ~1, big negative → ~0, 0 → 0.5.
+- **Training = adjust weights so z comes out positive for 1-samples and negative for 0-samples.** One weighted sum = one straight boundary; training = drawing that line well.
+- ⚠️ **XOR is not linearly separable** (no single straight line separates ●/○) → **impossible for a single layer** → needs a hidden layer (notes 63, 64, 105, 119).
+
+## 124. The Geometry of the Decision Boundary — the Line Is z=0, the Slope Is −w1/w2 (not the weights themselves)
+
+- **One weight set = one line (decision boundary).** Random weights = a line at a random angle & position.
+- **The line itself = where z=0.** z is not the line's endpoints but **which side of the line each point is on, and how far** (a signed distance). On the line=0, one side=+ (the "1" side), the other=− (the "0" side); farther → bigger |z|.
+- Line equation: `w1·x1+w2·x2+b=0` → `x2 = −(w1/w2)·x1 − b/w2`. **Slope = −w1/w2 (the ratio of the two weights, not a weight itself); intercept = −b/w2 (set by bias).** Neuron 0 (0.50,−0.47,b=0) → slope 1.06, through the origin.
+- **Coordinate meaning**: x-axis = x1, y-axis = x2 (the two input features). **z is not an axis** but a value computed at each point (a "height"). The line is drawn from any two points ((0,0),(1,1.06)).
+- The weight vector (w1,w2) is **perpendicular** to the line, pointing toward increasing z (the "1" side).
 
 ---
 
