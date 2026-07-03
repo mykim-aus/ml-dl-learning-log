@@ -14,6 +14,10 @@ A personal log of everything I ask AI while learning machine learning and deep l
 
 Each notes file has a small language switcher at the very top, so you can jump between English and Korean.
 
+## 🎮 Interactive demo
+
+**[Neural-network visualizer →](https://mykim-aus.github.io/ml-dl-learning-log/)** — step through forward/backprop one click at a time and watch each neuron's decision line move. Add hidden neurons to see how several colored lines combine to separate XOR, with every variable's live value shown. (Runs on GitHub Pages; source: [`index.html`](index.html).)
+
 ## Why I tried this
 
 Inspired by Andrej Karpathy's advice on how to become an expert: take on concrete projects depth-first and learn "on demand," summarize everything you learn in your own words, and only compare yourself to a younger you. So I started this log on my first day of studying ML/DL.
@@ -32,8 +36,10 @@ Just follow my curiosity down the rabbit hole, then loop forever:
 ```
 ml-dl-learning-log/
 ├── README.md          ← you are here
+├── index.html         ← interactive visualizer (GitHub Pages)
 ├── en/study-notes.md  ← English notes (main, keeps growing)
 ├── ko/study-notes.md  ← Korean notes (한국어)
+├── code/              ← hands-on code (NumPy backprop, etc.)
 └── assets/            ← images
 ```
 
@@ -54,6 +60,10 @@ ml-dl-learning-log/
 - [한국어 노트 →](ko/study-notes.md)
 
 각 노트 맨 위에 작은 언어 전환 링크가 있어 영어·한국어를 오갈 수 있습니다.
+
+## 🎮 인터랙티브 데모
+
+**[신경망 시각화 →](https://mykim-aus.github.io/ml-dl-learning-log/)** — 순전파·역전파를 한 클릭씩 진행하며 각 뉴런의 결정 선이 움직이는 걸 봅니다. 은닉 뉴런을 늘리면 여러 색깔 선이 조합돼 XOR을 어떻게 가르는지 보이고, 모든 변수 값이 실시간으로 나옵니다. (GitHub Pages에서 실행; 소스: [`index.html`](index.html).)
 
 ## 왜 시작했나
 

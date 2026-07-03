@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="은닉층 뉴런을 동적으로 늘리며(1 뉴런 = 색깔 선 1개) 순전파·역전파 한 스텝마다 여러 선이 조합돼 XOR 등 그룹을 어떻게 정확히 가르는지 보는 인터랙티브 시각화.">
+<title>신경망 학습 시각화 — 뉴런을 늘리며 선으로 그룹 가르기</title>
+<style>
+  :root{
+    --bg:#0e1319; --panel:#151d28; --panel2:#1b2431; --grid:#26313f;
+    --ink:#e8eef5; --dim:#9db0c4; --faint:#5f7185;
+    --c0:#4f86c6; --c1:#e59440;
+    --boundary:#f4f8fd;
+    --accent:#2bb6a5; --good:#3fb98a; --bad:#e5687d;
+    --radius:14px;
+    --mono:"SF Mono",ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;
+    --sans:-apple-system,"SF Pro Display","Segoe UI",system-ui,"Helvetica Neue",sans-serif;
+    --nsat:72%; --nlt:62%;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#eef1f5; --panel:#ffffff; --panel2:#f3f6f9; --grid:#dde4ec;
+      --ink:#17212f; --dim:#4c5b6d; --faint:#8494a5;
+      --c0:#3d6fa8; --c1:#cf8330; --boundary:#111823;
+      --accent:#1c8577; --good:#1f9d6b; --bad:#cf4d63; --nsat:68%; --nlt:44%;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.5;-webkit-font-smoothing:antialiased;padding:clamp(14px,3vw,34px)}
+  .wrap{max-width:1160px;margin:0 auto}
+  header{margin-bottom:18px}
+  h1{font-size:clamp(22px,3.4vw,32px);font-weight:650;letter-spacing:-.02em;margin:0 0 6px;text-wrap:balance}
+  .sub{color:var(--dim);font-size:15px;max-width:70ch;margin:0}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:600;margin:0 0 10px}
+  a{color:var(--accent)}
+
+  .seg{display:inline-flex;background:var(--panel2);border:1px solid var(--grid);border-radius:11px;padding:4px;gap:3px;margin:16px 12px 4px 0}
+  .seg button{font:inherit;font-size:13px;font-weight:600;color:var(--dim);background:none;border:0;
+    padding:7px 15px;border-radius:8px;cursor:pointer;transition:.15s}
+  .seg button[aria-pressed="true"]{background:var(--accent);color:#04231f}
+  .seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .dshint{font-size:12.5px;color:var(--faint);margin:2px 0 0}
+
+  /* neuron stepper */
+  .nstep{display:inline-flex;align-items:center;gap:0;background:var(--panel2);border:1px solid var(--grid);
+    border-radius:11px;padding:4px;vertical-align:middle}
+  .nstep button{font:inherit;font-weight:700;font-size:16px;width:34px;height:32px;border:0;border-radius:8px;
+    background:none;color:var(--ink);cursor:pointer}
+  .nstep button:hover{background:var(--grid)}
+  .nstep button:disabled{opacity:.35;cursor:default}
+  .nstep .lbl{font-size:13px;font-weight:600;color:var(--dim);padding:0 12px;min-width:96px;text-align:center}
+  .nstep .lbl b{color:var(--ink);font-family:var(--mono)}
+
+  .grid{display:grid;grid-template-columns:minmax(0,1.04fr) minmax(0,1fr);gap:18px;margin-top:16px}
+  @media (max-width:880px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--grid);border-radius:var(--radius);padding:18px}
+  .card h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:600;margin:0 0 14px}
+
+  .plotwrap{position:relative;width:100%;aspect-ratio:1/1;max-width:540px;margin:0 auto}
+  canvas#plot{width:100%;height:100%;border-radius:10px;display:block;background:var(--panel2)}
+  .legend{display:flex;flex-wrap:wrap;gap:12px 18px;margin-top:14px;font-size:12.5px;color:var(--dim)}
+  .legend .row{display:flex;align-items:center;gap:7px}
+  .swatch{width:22px;height:11px;border-radius:3px;background:linear-gradient(90deg,var(--c0),var(--panel2),var(--c1))}
+  .dot{width:13px;height:13px;border-radius:50%;flex:none}
+  .dot.f0{background:var(--c0)} .dot.f1{background:var(--c1)}
+  .ring{width:14px;height:14px;border-radius:50%;border:2.5px solid var(--good);flex:none}
+  .ring.bad{border-color:var(--bad)}
+  .lineic{width:20px;height:0;border-top:3px solid var(--dim);flex:none}
+
+  .controls{display:flex;flex-wrap:wrap;gap:9px;margin-top:16px;align-items:center}
+  button.btn{font:inherit;font-weight:600;font-size:14px;border:1px solid var(--grid);
+    background:var(--panel2);color:var(--ink);padding:10px 15px;border-radius:10px;cursor:pointer;transition:.15s}
+  button.btn:hover{border-color:var(--accent)}
+  button.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  button.btn.primary{background:var(--accent);color:#04231f;border-color:var(--accent)}
+  button.btn.primary:hover{filter:brightness(1.08)}
+  .lr{display:flex;align-items:center;gap:9px;margin-left:auto;font-size:13px;color:var(--dim)}
+  .lr input[type=range]{width:100px;accent-color:var(--accent)}
+  .lrval{font-family:var(--mono);color:var(--ink);min-width:3.2ch;text-align:right;font-variant-numeric:tabular-nums}
+
+  .status{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+  .stat{flex:1;min-width:80px;background:var(--panel2);border:1px solid var(--grid);border-radius:10px;padding:10px 12px}
+  .stat .k{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+  .stat .v{font-family:var(--mono);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+  canvas#spark{width:100%;height:46px;margin-top:12px;display:block}
+  .verdict{margin-top:12px;font-size:13.5px;padding:10px 13px;border-radius:9px;background:var(--panel2);border:1px solid var(--grid);color:var(--dim)}
+  .verdict b{color:var(--ink)}
+
+  .block{margin-bottom:16px}
+  .block:last-child{margin-bottom:0}
+  .blabel{font-size:12.5px;font-weight:650;color:var(--ink);margin:0 0 9px;display:flex;align-items:center;gap:8px}
+  .blabel .n{width:19px;height:19px;border-radius:6px;background:var(--accent);color:#04231f;font-size:11px;font-weight:700;display:grid;place-items:center;flex:none}
+  .ncell{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:12px;padding:7px 10px;
+    background:var(--panel2);border:1px solid var(--grid);border-radius:9px;margin-bottom:6px;overflow-x:auto;white-space:nowrap}
+  .ncell:last-child{margin-bottom:0}
+  .ncell .nsw{width:22px;height:4px;border-radius:2px;flex:none}
+  .ncell .nid{font-weight:700;color:var(--ink);flex:none}
+  .ncell .eq{color:var(--dim)} .ncell .eq b{color:var(--ink)}
+  .ncell .w2{margin-left:auto;color:var(--faint);flex:none;padding-left:12px}
+  .ncell .w2 b{color:var(--accent)}
+
+  .tblwrap{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+  th,td{padding:6px 8px;text-align:right;white-space:nowrap}
+  th{color:var(--faint);font-weight:600;font-size:11px;border-bottom:1px solid var(--grid)}
+  td{border-bottom:1px solid var(--grid);color:var(--ink)}
+  tr:last-child td{border-bottom:0}
+  th:first-child,td:first-child{text-align:left}
+  td .chip{display:inline-block;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600}
+  .chip.ok{background:color-mix(in srgb,var(--good) 22%,transparent);color:var(--good)}
+  .chip.no{background:color-mix(in srgb,var(--bad) 22%,transparent);color:var(--bad)}
+  .y0{color:var(--c0)} .y1{color:var(--c1)}
+  th.hcol,td.hcol{color:var(--dim)}
+  .lineeq{font-family:var(--mono);font-size:12px;color:var(--dim);margin-top:9px;background:var(--panel2);border:1px solid var(--grid);border-radius:8px;padding:8px 11px;overflow-x:auto;white-space:nowrap}
+  .lineeq b{color:var(--ink)}
+  details{margin-top:6px;border:1px solid var(--grid);border-radius:9px;background:var(--panel2);padding:0 11px}
+  summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--dim);padding:10px 0;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"▸ ";color:var(--accent)}
+  details[open] summary::before{content:"▾ "}
+  details .inner{padding:2px 0 12px}
+  .foot{color:var(--faint);font-size:12px;margin-top:22px;text-align:center}
+  .foot a{color:var(--dim)}
+  .mono{font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">은닉층 · 순전파 · 역전파 · 경사하강</p>
+    <h1>뉴런을 늘리며 선으로 그룹 가르기</h1>
+    <p class="sub"><b>뉴런 1개 = 가중치 세트 1개 = 색깔 선 1개.</b> 뉴런을 늘리면 여러 선(+ReLU)이 조합돼 곡선 경계를 만들고, 직선 하나로는 못 푸는 XOR도 갈라집니다. <b>1 스텝</b>마다 순전파→손실→역전파→업데이트가 돌며 선들이 움직여요. 오른쪽에 모든 변수 값이 나옵니다.</p>
+
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+      <div class="seg" role="group" aria-label="데이터셋 선택">
+        <button data-ds="XOR" aria-pressed="true">XOR</button>
+        <button data-ds="AND" aria-pressed="false">AND</button>
+        <button data-ds="OR"  aria-pressed="false">OR</button>
+      </div>
+      <div class="nstep">
+        <button id="nminus" aria-label="뉴런 줄이기">−</button>
+        <span class="lbl">은닉 뉴런 <b id="nlbl">4</b>개</span>
+        <button id="nplus" aria-label="뉴런 늘리기">+</button>
+      </div>
+    </div>
+    <p class="dshint" id="dshint"></p>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h2>결정 경계 (x1–x2 평면)</h2>
+      <div class="plotwrap"><canvas id="plot" width="540" height="540" aria-label="결정 경계 그래프"></canvas></div>
+      <div class="legend">
+        <div class="row"><span class="swatch"></span> 확률 장(최종 출력): 파랑=0 · 주황=1</div>
+        <div class="row"><span class="lineic"></span> 색깔 선 = 각 은닉 뉴런의 경계</div>
+        <div class="row"><span class="dot f1"></span><span class="dot f0"></span> 채움=정답 y</div>
+        <div class="row"><span class="ring"></span>맞음 <span class="ring bad" style="margin-left:4px"></span>틀림</div>
+      </div>
+      <div class="controls">
+        <button class="btn primary" id="step">▶ 1 스텝</button>
+        <button class="btn" id="step10">⏩ 10 스텝</button>
+        <button class="btn" id="auto">⏵ 자동</button>
+        <button class="btn" id="reset">⟳ 리셋</button>
+        <label class="lr">lr <input type="range" id="lr" min="0.05" max="4" step="0.05" value="1"><span class="lrval" id="lrval">1.00</span></label>
+      </div>
+      <div class="status">
+        <div class="stat"><div class="k">스텝</div><div class="v" id="s-step">0</div></div>
+        <div class="stat"><div class="k">손실</div><div class="v" id="s-loss">–</div></div>
+        <div class="stat"><div class="k">맞춘 샘플</div><div class="v" id="s-acc">0/4</div></div>
+        <div class="stat"><div class="k">뉴런(선)</div><div class="v" id="s-h">4</div></div>
+      </div>
+      <canvas id="spark" width="500" height="46" aria-label="손실 추이"></canvas>
+      <div class="verdict" id="verdict"></div>
+    </div>
+
+    <div class="card">
+      <h2>모든 변수 값 (현재 상태)</h2>
+
+      <div class="block">
+        <p class="blabel"><span class="n">1</span> 은닉 뉴런 = 선 (각자 색)</p>
+        <div id="neurons"></div>
+        <div class="lineeq" id="outeq">출력층: z2 = Σ a1ⱼ·W2ⱼ + b2 · b2 = –</div>
+      </div>
+
+      <div class="block">
+        <p class="blabel"><span class="n">2</span> 순전파 — a1(ReLU 후) → 출력</p>
+        <div class="tblwrap"><table id="fwd"></table></div>
+        <div class="lineeq" style="margin-top:9px">총손실 <b id="losseq">–</b> &nbsp;=&nbsp; −평균(y·ln p + (1−y)·ln(1−p))</div>
+      </div>
+
+      <div class="block">
+        <p class="blabel"><span class="n">3</span> 역전파 &amp; 업데이트</p>
+        <div class="lineeq">출력 오차 dz2 = (출력−y)/4: <b id="dz2v">–</b></div>
+        <details id="bwd-d">
+          <summary>모든 기울기 값 펼치기 (dW1, db1, dW2, db2)</summary>
+          <div class="inner" id="bwd"></div>
+        </details>
+        <div class="lineeq" style="margin-top:8px;color:var(--faint)">「1 스텝」 = 모든 가중치를 <span class="mono">W −= lr·기울기</span>로 갱신 → 선들이 움직임</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">2층 신경망 <span class="mono">z1=X·W1+b1 → ReLU → z2=a1·W2+b2 → σ → BCE</span> — <a href="code/backprop-numpy/backprop.py">backprop.py</a>와 같은 구조(은닉 뉴런 수만 조절). · <a href="ko/study-notes.md">학습 노트</a></p>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const DATA = {
+    XOR: [[0,0,0],[0,1,1],[1,0,1],[1,1,0]],
+    AND: [[0,0,0],[0,1,0],[1,0,0],[1,1,1]],
+    OR:  [[0,0,0],[0,1,1],[1,0,1],[1,1,1]],
+  };
+  const SEP = { XOR:false, AND:true, OR:true };
+  const HINT = {
+    XOR:"XOR: 입력이 서로 다르면 1. 직선 하나로는 못 가름 → 뉴런(선)을 2개 이상으로 늘려보세요.",
+    AND:"AND: 둘 다 1이어야 1. 직선 하나로도 가릴 수 있어요.",
+    OR :"OR: 하나라도 1이면 1. 직선 하나로도 가릴 수 있어요.",
+  };
+  const N = 4, HMIN = 1, HMAX = 8;
+  const state = { ds:"XOR", H:4, lr:1.0, step:0, net:null };
+  let lossHist = [], autoTimer = null;
+
+  const sig = z => z>=0 ? 1/(1+Math.exp(-z)) : (e=>e/(1+e))(Math.exp(z));
+  const clip = p => Math.min(Math.max(p,1e-7),1-1e-7);
+  const f = (x,d=3) => (Math.abs(x)<5e-4?0:x).toFixed(d);
+  const sgn = x => (x>=0?"+":"−");
+  const rnd = () => Math.random()*2-1;
+  const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const ncolor = j => `hsl(${Math.round(j*360/Math.max(state.H,1)+15)}, ${css('--nsat')}, ${css('--nlt')})`;
+
+  function makeNet(H){
+    const W1=[[],[]], b1=[], W2=[];
+    for(let j=0;j<H;j++){ W1[0].push(rnd()); W1[1].push(rnd()); b1.push(rnd()*0.5); W2.push(rnd()); }
+    return {W1,b1,W2,b2:0,H};
+  }
+  function cloneNet(n){return {W1:[n.W1[0].slice(),n.W1[1].slice()],b1:n.b1.slice(),W2:n.W2.slice(),b2:n.b2,H:n.H};}
+  function outP(net,x1,x2){ let z2=net.b2; for(let j=0;j<net.H;j++){const z=net.W1[0][j]*x1+net.W1[1][j]*x2+net.b1[j]; if(z>0) z2+=z*net.W2[j];} return sig(z2); }
+
+  function computeAll(net){
+    const H=net.H, data=DATA[state.ds];
+    const per=data.map(([x1,x2,y])=>{
+      const z1=[],a1=[];
+      for(let j=0;j<H;j++){const z=net.W1[0][j]*x1+net.W1[1][j]*x2+net.b1[j]; z1.push(z); a1.push(z>0?z:0);}
+      let z2=net.b2; for(let j=0;j<H;j++) z2+=a1[j]*net.W2[j];
+      const p=sig(z2), e=p-y, dz2=e/N, pc=clip(p);
+      const li=-(y*Math.log(pc)+(1-y)*Math.log(1-pc));
+      return {x1,x2,y,z1,a1,z2,p,e,dz2,li,pred:p>=.5?1:0,correct:(p>=.5?1:0)===y};
+    });
+    const loss=per.reduce((s,r)=>s+r.li,0)/N;
+    const dW2=new Array(H).fill(0); let db2=0;
+    const dW1=[new Array(H).fill(0),new Array(H).fill(0)], db1=new Array(H).fill(0);
+    per.forEach(r=>{
+      db2+=r.dz2;
+      for(let j=0;j<H;j++){
+        dW2[j]+=r.a1[j]*r.dz2;
+        const dz1=(r.z1[j]>0?1:0)*r.dz2*net.W2[j];
+        dW1[0][j]+=r.x1*dz1; dW1[1][j]+=r.x2*dz1; db1[j]+=dz1;
+      }
+    });
+    return {per,loss,dW1,db1,dW2,db2};
+  }
+  function applyGrad(net,g,lr){
+    for(let j=0;j<net.H;j++){ net.W1[0][j]-=lr*g.dW1[0][j]; net.W1[1][j]-=lr*g.dW1[1][j];
+      net.b1[j]-=lr*g.db1[j]; net.W2[j]-=lr*g.dW2[j]; }
+    net.b2-=lr*g.db2;
+  }
+  function lerpNet(a,b,t){
+    const n=cloneNet(a);
+    for(let j=0;j<a.H;j++){ n.W1[0][j]=a.W1[0][j]+(b.W1[0][j]-a.W1[0][j])*t; n.W1[1][j]=a.W1[1][j]+(b.W1[1][j]-a.W1[1][j])*t;
+      n.b1[j]=a.b1[j]+(b.b1[j]-a.b1[j])*t; n.W2[j]=a.W2[j]+(b.W2[j]-a.W2[j])*t; }
+    n.b2=a.b2+(b.b2-a.b2)*t; return n;
+  }
+
+  /* ---------- plot ---------- */
+  const cv=document.getElementById("plot"), ctx=cv.getContext("2d");
+  const off=document.createElement("canvas"); off.width=off.height=150; const octx=off.getContext("2d");
+  const DMIN=-0.3, DMAX=1.3, RANGE=DMAX-DMIN; let CSS=540, PAD=34;
+  const sx=x1=>PAD+(x1-DMIN)/RANGE*(CSS-2*PAD);
+  const sy=x2=>PAD+(1-(x2-DMIN)/RANGE)*(CSS-2*PAD);
+  const hexToRgb=h=>{h=h.replace('#','');return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];};
+  const lerp=(a,b,t)=>a+(b-a)*t;
+
+  function resize(){
+    const r=cv.getBoundingClientRect(); CSS=Math.max(260,r.width);
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    cv.width=CSS*dpr; cv.height=CSS*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+    drawPlot(state.net);
+  }
+  function drawHeatmap(net){
+    const B=off.width, c0=hexToRgb(css('--c0')), c1=hexToRgb(css('--c1')), mid=hexToRgb(css('--panel2'));
+    const img=octx.createImageData(B,B);
+    for(let jj=0;jj<B;jj++){ const x2=DMAX-jj/(B-1)*RANGE;
+      for(let ii=0;ii<B;ii++){ const x1=DMIN+ii/(B-1)*RANGE; const p=outP(net,x1,x2);
+        let col; if(p<0.5){const t=(0.5-p)/0.5; col=[lerp(mid[0],c0[0],t),lerp(mid[1],c0[1],t),lerp(mid[2],c0[2],t)];}
+        else{const t=(p-0.5)/0.5; col=[lerp(mid[0],c1[0],t),lerp(mid[1],c1[1],t),lerp(mid[2],c1[2],t)];}
+        const k=(jj*B+ii)*4; img.data[k]=col[0]; img.data[k+1]=col[1]; img.data[k+2]=col[2]; img.data[k+3]=235; } }
+    octx.putImageData(img,0,0); ctx.imageSmoothingEnabled=true;
+    ctx.drawImage(off,PAD,PAD,CSS-2*PAD,CSS-2*PAD);
+  }
+  function drawLineForNeuron(net,j,color){
+    const w1=net.W1[0][j], w2=net.W1[1][j], b=net.b1[j], den=w1*w1+w2*w2;
+    if(den<1e-9) return;
+    const px=-b*w1/den, py=-b*w2/den, dx=-w2/Math.sqrt(den), dy=w1/Math.sqrt(den), L=4;
+    ctx.save(); ctx.beginPath(); ctx.rect(PAD,PAD,CSS-2*PAD,CSS-2*PAD); ctx.clip();
+    ctx.lineCap="round";
+    ctx.strokeStyle="rgba(0,0,0,.35)"; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.moveTo(sx(px-dx*L),sy(py-dy*L)); ctx.lineTo(sx(px+dx*L),sy(py+dy*L)); ctx.stroke();
+    ctx.strokeStyle=color; ctx.lineWidth=2.6;
+    ctx.beginPath(); ctx.moveTo(sx(px-dx*L),sy(py-dy*L)); ctx.lineTo(sx(px+dx*L),sy(py+dy*L)); ctx.stroke();
+    ctx.restore();
+  }
+  function drawPlot(net){
+    ctx.clearRect(0,0,CSS,CSS); ctx.fillStyle=css('--panel2'); ctx.fillRect(0,0,CSS,CSS);
+    drawHeatmap(net);
+    ctx.strokeStyle=css('--grid'); ctx.lineWidth=1; ctx.setLineDash([4,4]);
+    [0,1].forEach(v=>{ ctx.beginPath(); ctx.moveTo(sx(v),PAD); ctx.lineTo(sx(v),CSS-PAD); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(PAD,sy(v)); ctx.lineTo(CSS-PAD,sy(v)); ctx.stroke(); });
+    ctx.setLineDash([]);
+    ctx.fillStyle=css('--faint'); ctx.font="12px "+css('--mono'); ctx.textAlign="center";
+    ctx.fillText("0",sx(0),CSS-PAD+16); ctx.fillText("1",sx(1),CSS-PAD+16); ctx.fillText("x1",CSS-PAD+2,CSS-PAD+16);
+    ctx.textAlign="right"; ctx.fillText("0",PAD-8,sy(0)+4); ctx.fillText("1",PAD-8,sy(1)+4); ctx.fillText("x2",PAD-4,PAD-10);
+    for(let j=0;j<net.H;j++) drawLineForNeuron(net,j,ncolor(j));
+    const d=computeAll(net);
+    d.per.forEach(r=>{ const X=sx(r.x1),Y=sy(r.x2);
+      ctx.beginPath(); ctx.arc(X,Y,9,0,7); ctx.fillStyle=r.y===1?css('--c1'):css('--c0'); ctx.fill();
+      ctx.lineWidth=3; ctx.strokeStyle=r.correct?css('--good'):css('--bad'); ctx.stroke();
+      ctx.fillStyle=css('--ink'); ctx.font="10px "+css('--mono'); ctx.textAlign="center";
+      ctx.fillText(`[${r.x1},${r.x2}]`,X,Y-14); });
+  }
+
+  /* ---------- spark ---------- */
+  const sc=document.getElementById("spark"), sctx=sc.getContext("2d");
+  function drawSpark(){
+    const r=sc.getBoundingClientRect(), dpr=Math.min(window.devicePixelRatio||1,2);
+    sc.width=r.width*dpr; sc.height=46*dpr; sctx.setTransform(dpr,0,0,dpr,0,0);
+    const W=r.width,H=46; sctx.clearRect(0,0,W,H); if(lossHist.length<2) return;
+    const mx=Math.max(...lossHist), mn=Math.min(...lossHist), rg=(mx-mn)||1;
+    const xp=i=>i/(lossHist.length-1)*(W-6)+3, yp=v=>H-4-(v-mn)/rg*(H-10);
+    sctx.beginPath(); sctx.moveTo(xp(0),H); lossHist.forEach((v,i)=>sctx.lineTo(xp(i),yp(v)));
+    sctx.lineTo(xp(lossHist.length-1),H); sctx.closePath();
+    const ac=hexToRgb(css('--accent')); sctx.fillStyle=`rgba(${ac[0]},${ac[1]},${ac[2]},0.16)`; sctx.fill();
+    sctx.beginPath(); lossHist.forEach((v,i)=>i?sctx.lineTo(xp(i),yp(v)):sctx.moveTo(xp(i),yp(v)));
+    sctx.strokeStyle=css('--accent'); sctx.lineWidth=1.8; sctx.stroke();
+    const li=lossHist.length-1; sctx.beginPath(); sctx.arc(xp(li),yp(lossHist[li]),3,0,7); sctx.fillStyle=css('--accent'); sctx.fill();
+  }
+
+  /* ---------- panel ---------- */
+  const $=id=>document.getElementById(id);
+  const ycls=y=>y===1?'y1':'y0';
+  function renderPanel(){
+    const net=state.net, H=net.H, d=computeAll(net);
+    // neuron lines
+    $("neurons").innerHTML=Array.from({length:H},(_,j)=>{
+      const w1=net.W1[0][j], w2=net.W1[1][j], b=net.b1[j];
+      let eq; if(Math.abs(w2)>1e-9){const m=-w1/w2,c=-b/w2; eq=`x2 = <b>${f(m,2)}</b>·x1 ${sgn(c)} ${f(Math.abs(c),2)}`;}
+      else eq=`x1 = <b>${f(-b/w1,2)}</b> (수직)`;
+      return `<div class="ncell"><span class="nsw" style="background:${ncolor(j)}"></span>
+        <span class="nid">뉴런 ${j}</span><span class="eq">${eq}</span>
+        <span class="w2">→출력 W2=<b>${f(net.W2[j],2)}</b></span></div>`;
+    }).join("");
+    $("outeq").innerHTML=`출력층: z2 = Σ a1ⱼ·W2ⱼ + b2 &nbsp; b2 = <b>${f(net.b2)}</b>`;
+    // forward table
+    let head=`<thead><tr><th>샘플</th>`+Array.from({length:H},(_,j)=>`<th class="hcol">a1<sub>${j}</sub></th>`).join("")
+      +`<th>z2</th><th>출력 p</th><th>y</th><th>맞음</th></tr></thead>`;
+    let body=`<tbody>`+d.per.map(r=>`<tr><td>[${r.x1},${r.x2}]</td>`
+      +r.a1.map(a=>`<td class="hcol">${f(a,2)}</td>`).join("")
+      +`<td>${f(r.z2)}</td><td>${f(r.p)}</td><td class="${ycls(r.y)}">${r.y}</td>`
+      +`<td><span class="chip ${r.correct?'ok':'no'}">${r.correct?'✓':'✗'}</span></td></tr>`).join("")+`</tbody>`;
+    $("fwd").innerHTML=head+body;
+    $("losseq").textContent=f(d.loss,4);
+    $("dz2v").textContent="[ "+d.per.map(r=>`${sgn(r.dz2)}${f(Math.abs(r.dz2))}`).join(", ")+" ]";
+    // backward details
+    const gtab=(label,arr)=>`<div class="lineeq" style="margin-top:6px">${label}: [ ${arr.map(v=>`${sgn(v)}${f(Math.abs(v))}`).join(", ")} ]</div>`;
+    $("bwd").innerHTML =
+      gtab("dW2 (뉴런→출력, "+H+"개)", d.dW2) +
+      `<div class="lineeq" style="margin-top:6px">db2 = <b>${f(d.db2)}</b></div>` +
+      gtab("dW1[x1] ("+H+"개)", d.dW1[0]) +
+      gtab("dW1[x2] ("+H+"개)", d.dW1[1]) +
+      gtab("db1 ("+H+"개)", d.db1);
+    // status
+    $("s-step").textContent=state.step; $("s-loss").textContent=f(d.loss,4);
+    const acc=d.per.filter(r=>r.correct).length; $("s-acc").textContent=acc+"/4"; $("s-h").textContent=H;
+    let v;
+    const solved=d.loss<0.08 && acc===4;
+    if(solved) v=`<b>성공!</b> ${H}개의 선이 조합돼 그룹을 정확히 갈랐어요 (손실 ${f(d.loss,3)}, 4/4). ${!SEP[state.ds]?'직선 하나로 못 푸는 XOR을 은닉층이 해결했죠.':''}`;
+    else if(!SEP[state.ds] && H===1 && state.step>50) v=`<b>뉴런 1개(선 1개)로는 XOR을 못 풉니다.</b> 위의 <b>+</b>로 뉴런을 2개 이상 늘려보세요.`;
+    else if(state.step===0) v=`시작 상태(랜덤 가중치). <b>▶ 1 스텝</b>이나 <b>⏵ 자동</b>으로 선들이 움직이는 걸 보세요.`;
+    else v=`학습 중… 틀린 점(빨간 테두리)을 맞는 쪽으로 끌며 ${H}개의 선이 함께 움직입니다. (손실 ${f(d.loss,3)}, ${acc}/4)`;
+    $("verdict").innerHTML=v;
+    return d;
+  }
+  function render(){ drawPlot(state.net); renderPanel(); drawSpark(); }
+
+  /* ---------- step ---------- */
+  function stepOnce(animate){
+    const g=computeAll(state.net); if(!isFinite(g.loss)) return;
+    const start=cloneNet(state.net); const target=cloneNet(state.net); applyGrad(target,g,state.lr);
+    state.step++; lossHist.push(g.loss); if(lossHist.length>400) lossHist.shift();
+    if(animate && !reduced){
+      const t0=performance.now(), dur=240;
+      (function frame(now){ let t=Math.min(1,(now-t0)/dur); const e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+        drawPlot(lerpNet(start,target,e));
+        if(t<1) requestAnimationFrame(frame); else { state.net=target; render(); } })(t0);
+    } else { state.net=target; render(); }
+  }
+  const steps=n=>{ for(let i=0;i<n;i++) stepOnce(false); };
+
+  function reset(){ stopAuto(); state.net=makeNet(state.H); state.step=0; lossHist=[]; render(); }
+  function stopAuto(){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;$("auto").textContent="⏵ 자동";$("auto").classList.remove("primary");} }
+  function toggleAuto(){ if(autoTimer){stopAuto();return;} $("auto").textContent="⏸ 정지"; $("auto").classList.add("primary"); autoTimer=setInterval(()=>stepOnce(false),380); }
+  function setH(h){ state.H=Math.max(HMIN,Math.min(HMAX,h)); $("nlbl").textContent=state.H;
+    $("nminus").disabled=state.H<=HMIN; $("nplus").disabled=state.H>=HMAX; reset(); }
+
+  /* ---------- wire ---------- */
+  $("step").onclick=()=>{stopAuto();stepOnce(true);};
+  $("step10").onclick=()=>{stopAuto();steps(10);};
+  $("auto").onclick=toggleAuto;
+  $("reset").onclick=reset;
+  $("nminus").onclick=()=>setH(state.H-1);
+  $("nplus").onclick=()=>setH(state.H+1);
+  $("lr").oninput=e=>{state.lr=parseFloat(e.target.value); $("lrval").textContent=state.lr.toFixed(2); renderPanel();};
+  document.querySelectorAll(".seg button").forEach(btn=>{ btn.onclick=()=>{
+    document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-pressed",b===btn));
+    state.ds=btn.dataset.ds; $("dshint").textContent=HINT[state.ds]; reset(); }; });
+  window.addEventListener("resize",()=>{resize();drawSpark();});
+
+  $("dshint").textContent=HINT[state.ds];
+  $("nminus").disabled=state.H<=HMIN; $("nplus").disabled=state.H>=HMAX;
+  state.net=makeNet(state.H); resize(); render();
+})();
+</script>
+</body>
+</html>
