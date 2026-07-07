@@ -1611,6 +1611,45 @@ A record of taking what I learned abstractly today and computing it myself with 
 - **Caution (wired at ⑤)**: compute mean/std from **training data only** and apply the same to test. Test must be "unseen" (note 130), so peeking at test stats is cheating (data leakage).
 - **What mean/std are**: mean = sum ÷ count. std (standard deviation) = spread around the mean = "typical distance from the mean" = sqrt(mean((x−mean)²)). `(x−mean)` → center 0, `÷std` → spread 1. `axis=0` = compute per column/feature (4 features → 4 results). Iris mean≈[5.84,3.06,3.76,1.2], std≈[.83,.43,1.76,.76]. Ex [2,4,6]→mean4·std1.63→standardized[-1.22,0,1.22].
 
+## 140. For 3-Class Output, Use softmax Instead of sigmoid — Turn 3 Scores into Probabilities That Sum to 1
+
+- Problem: 3 outputs (per-class scores) but "one of three" → must sum to 1. Applying sigmoid to each of the 3 gives each in 0~1 but **no guarantee they sum to 1** (each sigmoid sees only its own value, independent). Ex z=[3,3,3]→sigmoid[.95,.95,.95] sum 2.86 ❌.
+- **softmax** = the multi-class version of sigmoid. ① turn each score into e^(score) (makes positive + amplifies gaps) → ② divide by the total → automatically sums to 1. Formula softmax(z)_i = e^(z_i)/Σ_j e^(z_j). (Summing to 1 comes from step ② "divide by the total".)
+- Ex: softmax([3,3,3])=[.33,.33,.33] sum1, softmax([3,1,0])=[.84,.11,.04] sum1 (bigger score → bigger prob).
+- Forward pass end: output=softmax(z2). sigmoid is the 2-class special case of softmax (siblings). Note 122's "output-layer activation" generalized to multi-class.
+- (KIM's derivation/fix) Core = "looks at all 3 together" is right (hence sum=1, unlike sigmoid). But it's "divide by the sum," not "average": each ÷ sum = share, re-summing gives sum/sum=1. Ex [8,1,1]→[.8,.1,.1]. (Impl: softmax per row, axis=1; subtracting max prevents exp overflow.)
+
+## 141. Multi-class Loss = cross-entropy (= -log(prob of correct class)) + one-hot targets
+
+- Per-sample loss = **-log(probability given to the correct class)**. Give 1.0 to correct → -log1=0 (no penalty); give a sliver (0.012) → -log0.012≈4.4 (big). Total loss = the average. (KIM: severe error → big penalty)
+- = **cross-entropy** = the multi-class version of BCE (BCE is the 2-class special case). Same -log idea.
+- **one-hot**: turn integer y (0/1/2) into a vector — 0→[1,0,0],1→[0,1,0],2→[0,0,1] (the "target [1,0,0]" format of note 135). `np.eye(3)[y]`.
+- Compute: loss = -mean(sum(one-hot × log(output), axis=1)). one-hot keeps only the correct class (others ×0), selecting its log-prob → effectively the average of -log(correct-class prob).
+- Before training (random weights) the loss is large (note 123). [Later: dz2 for softmax+cross-entropy = (output − one-hot)/N — same clean form as XOR's (output−y)/N.]
+
+## 142. "Penalty" = loss. cross-entropy·BCE·MSE Are Ways (Types) to Measure the Loss
+
+- (KIM's question) is the cross-entropy penalty the loss here? → **Yes, penalty = loss = the same thing.**
+- **loss**: a single number measuring how far predictions are from the answers. Lower = better. **Training = lowering this loss.**
+- **cross-entropy/BCE/MSE = specific ways (formulas) to compute the loss.** Pick by problem type: regression (continuous)→**MSE** (squared error, Day 2) / 2-class→**BCE** (XOR) / multi-class→**cross-entropy** (Iris).
+- cross-entropy = "the ruler we currently use, among several loss rulers."
+
+## 143. train/test Split — Shuffle Before Cutting (the sorted gotcha) + Normalize with train Stats
+
+- Why split: measure generalization on unseen data (notes 128·130). 150 → 120 train / 30 test.
+- **gotcha**: Iris is sorted by class (first 50 setosa · mid 50 versicolor · last 50 virginica). Cutting "first120/last30" without shuffling makes **test all virginica** ([0,0,30]) → can't evaluate other species, train also short on virginica. (KIM: shuffle randomly)
+- **fix**: shuffle with `permutation` before cutting → X·y in the same order. Result test dist [10,11,9], balanced.
+- **normalization fix (note 139's promise)**: compute mean/std from **X_train only**, apply to both train·test. Peeking at test stats is cheating (data leakage) — test must be "unseen" (note 130).
+
+## 144. Iris NN Done — training took 7%→train 99%/test 97%, generalization is visible
+
+- Result: before training train 0.075·test 0.067 (random) → after **train 0.992·test 0.967**, loss 2.80→0.03. (As KIM predicted, "adjusting the weights" = backprop did it.)
+- **Generalization witnessed (notes 128·130)**: test 96.7% comes from **30 flowers never used in training** → it learned a rule, didn't memorize.
+- **Not overfit (notes 130·131)**: train 99.2% vs test 96.7% = small gap. If it had memorized, train~100%·test would drop. Small gap = healthy generalization.
+- loss 2.80→0.036 steep drop then flat = convergence (note 129 A, stops because all-correct).
+- Structure: in4→hidden8→out3, softmax+cross-entropy; backprop same form as XOR (only shapes differ). argmax picks the predicted class for accuracy.
+- Code: `code/iris-numpy/iris.py`.
+
 ---
 
 ## The Big Picture at a Glance
